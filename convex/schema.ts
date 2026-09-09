@@ -88,14 +88,16 @@ export default defineSchema({
     partNumber: v.string(),
     partName: v.optional(v.string()),
     drawingVersion: v.optional(v.string()),
-    customer: v.optional(v.id("customers")),
+
+    customerId: v.id("customers"),
     customerPartNumber: v.optional(v.string()),
     customerPartName: v.optional(v.string()),
     customerDrawingVersion: v.optional(v.string()),
+
     active: v.boolean(),
   })
     .index("by_partNumber", ["partNumber"])
-    .index("by_customer", ["customer"]),
+    .index("by_customerId", ["customerId"]),
 
   workorders: defineTable({
     number: v.string(),

@@ -28,20 +28,19 @@ export const getInspectionsInRange = query({
 // what is const? why it's not var, what happened internally
 export const startInspection = mutation({
   args: {
-    partNumber: v.string(), // E.g.: D1211A, I didn't use Id because I don't want to prepopulate the parts table before a inspection. or should I?
+    partId: v.id("parts"), // E.g.: D1211A, I didn't use Id because I don't want to prepopulate the parts table before a inspection. or should I?
     reason: reasonValidator,
     source: sourceValidator,
     stage: stageValidator,
-    inspector: v.optional(v.id("inspectors")), // I want ID rather than inspertor name is the inspector must already or very likely loggin in or authenticated. and when starting an inspection the id is available.
-    workorder: v.optional(v.id("workorder")),
+    inspectorId: v.optional(v.id("inspectors")), // I want ID rather than inspertor name is the inspector must already or very likely loggin in or authenticated. and when starting an inspection the id is available.
+    workorderId: v.optional(v.id("workorders")),
   },
   handler: async (ctx, args) => {
-    const { partNumber, workorder, ...rest } = args;
-
-    await ctx.db.insert("inspections", {
+    const inspectionId = await ctx.db.insert("inspections", {
       ...args,
       startedAt: Date.now(),
       result: "pending",
     });
+    return inspectionId;
   },
 });
