@@ -16,9 +16,16 @@ export const createWorkorder = mutation({
       throw new Error(`Work Order ${existing.woNumber} exists`);
     }
 
+    const part = await ctx.db.get("parts", args.partId);
+    if (part === null) {
+      throw new Error(`Part not esists`);
+    }
+
     const workorderId = await ctx.db.insert("workorders", {
       ...args,
       active: true,
     });
+
+    return workorderId;
   },
 });
