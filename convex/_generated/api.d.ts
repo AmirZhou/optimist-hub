@@ -8,7 +8,7 @@
  * @module
  */
 
-import type * as inspection from "../inspection.js";
+import type * as inspections from "../inspections.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +17,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  inspection: typeof inspection;
+  inspections: typeof inspections;
 }>;
 
 /**

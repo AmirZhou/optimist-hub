@@ -1,70 +1,110 @@
 import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { v, Infer } from "convex/values";
+
+export const fileKindValidator = v.union(
+  v.literal("vendor_sheet"),
+  v.literal("inhouse_sheet"),
+  v.literal("photo"),
+  v.literal("ncr"),
+);
+
+export const reasonValidator = v.union(
+  v.literal("routine"),
+  v.literal("first_article"),
+  v.literal("problem"),
+  v.literal("reinspect"),
+);
+export type Reason = Infer<typeof reasonValidator>;
+
+export const sourceValidator = v.union(
+  v.literal("inhouse"),
+  v.literal("vendor"),
+);
+
+export const resultValidator = v.union(
+  v.literal("pending"),
+  v.literal("pass"),
+  v.literal("fail"),
+);
+
+export const stageValidator = v.union(
+  v.literal("blank"),
+  v.literal("infiltration"),
+  v.literal("heatTreat"),
+  v.literal("finishing"),
+  v.literal("rework"),
+);
 
 export default defineSchema({
+  customers: defineTable({
+    code: v.string(), // name, shorthand like PHX
+    name: v.string(), // legal name
+    active: v.boolean(), // soft delete, in QMS we never delete a customer
+  }).index("by_code", ["code"]),
 
-    customers: defineTable({
-        code: v.string(), // name, shorthand like PHX
-        name: v.string(), // legal name
-        active: v.boolean(), // soft delete, in QMS we never delete a customer
-    }).index("by_code", ["code"]),
+  inspections: defineTable({
+    partId: v.id("parts"),
+    customerPo: v.optional(v.string()),
+    vendorPo: v.optional(v.string()),
+    workorderId: v.optional(v.id("workorders")),
 
-    inspections: defineTable({
-        customerId: v.optional(v.id("customers")),
-        partNumber: v.string(), // this is the drawing partNumber
-        serials: v.array(v.string()),
-        drawingRev: v.string(),
-        po: v.optional(v.string()),
-        workorder: v.optional(v.string()),
-        inspectedAt: v.number(),
-        inspector: v.id("inspectors") ,
-        qtyInspected: v.number(),
-        qtyRejected: v.number(),
-        result: v.union(
-            v.literal("pass"),
-            v.literal("fail"),
-            v.literal("partial"),
-        ),
-        stage: v.union(
-            v.literal("blank"),
-            v.literal("infiltration"),// problem with this, we infiltrate several (0-8) parts for now. they blong to our workorder. later they will be send to heattreat together, or with other workorders, not restriction at all. and then they will come back. grind to finishing size or we grind inhouse. no restriction at all. what I care in terms of QC is: 1, is the infiltrate result success? like is there any leaks. 2, after the part been heat treated, is there any cracking. 3, if none of these happens, is the finishing grinded part in-size.
-            v.literal("heatTreat"),
-            v.literal("finishing"),
-            v.literal("rework"),
-        ),
-        source: v.union(
-            v.literal("inhouse"),
-            v.literal("vendor"),
-        ),
-        reason: v.union(
-            v.literal("routine"),
-            v.literal("first_article"),
-            v.literal("problem"),
-            v.literal("reinspect"),
-        ),
-        minutes: v.number(),
-        ncrNumber: v.optional(v.string()),
-        notes: v.optional(v.string()),
-    }).index("by_partNumber_workorder", ["partNumber", "workorder"]).index("by_inspectedAt", ["inspectedAt"]),
+    serials: v.optional(v.array(v.string())),
 
-    files: defineTable({
-        inspectionId: v.id("inspections"),
-        kind: v.union(
-            v.literal("vendor_sheet"),
-            v.literal("inhouse_sheet"),
-            v.literal("photo"),
-            v.literal("ncr"),
-        ),
-        storage: v.id("_storage"),
-        caption: v.optional(v.string()),
-        page: v.optional(v.number()),
-    }).index("by_inspectionId", ["inspectionId"]),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    activeMinutes: v.optional(v.number()),
 
-    inspectors: defineTable({
-        name: v.string(),
-        active: v.boolean(),
-    })
-})
+    inspectorId: v.optional(v.id("inspectors")),
+
+    qtyInspected: v.optional(v.number()),
+    qtyRejected: v.optional(v.number()),
+    result: resultValidator,
+
+    stage: stageValidator,
+    source: sourceValidator,
+    reason: reasonValidator,
+
+    ncrNumber: v.optional(v.string()),
+
+    notes: v.optional(v.string()),
+  })
+    .index("by_partId", ["partId"]) // articulate this
+    .index("by_startedAt", ["startedAt"]), // if I set as finishedAt, one inspection may not be finished at the end of the day or week, and got missed. I want in my report that I clearly know what I started and finished
+
+  files: defineTable({
+    inspectionId: v.id("inspections"),
+    fileKind: fileKindValidator,
+    storage: v.id("_storage"),
+    caption: v.optional(v.string()),
+    page: v.optional(v.number()),
+  }).index("by_inspectionId", ["inspectionId"]),
+
+  inspectors: defineTable({
+    name: v.string(),
+    active: v.boolean(),
+  }),
+
+  parts: defineTable({
+    partNumber: v.string(),
+    partName: v.optional(v.string()),
+    drawingVersion: v.optional(v.string()),
+    customer: v.optional(v.id("customers")),
+    customerPartNumber: v.optional(v.string()),
+    customerPartName: v.optional(v.string()),
+    customerDrawingVersion: v.optional(v.string()),
+    active: v.boolean(),
+  })
+    .index("by_partNumber", ["partNumber"])
+    .index("by_customer", ["customer"]),
+
+  workorders: defineTable({
+    number: v.string(),
+    partId: v.id("parts"),
+    active: v.boolean(),
+  })
+    .index("by_number", ["number"])
+    .index("by_partId", ["partId"]),
+});
 
 // the \customer PO is the origin, actually one line in the customer PO (but sometimes we may buy blanks for a future PO just because we know (from verbal, or somekind of arrangement). PO leads to Part order from blank vendor, or inhouse manufacture. then Heat report of SGS will be supllied by either blank vendor or ourselves. we have spec for the head treat for each material. and Heat number to part is a many to many relationship.
 // The customer PO will be placed with drawing, customer drawing, it will have what ever drawing number nad drawing name, aka the part name. then our engineer will reproduce our version of it and the step file using a different number and different name. Tho similar, different
