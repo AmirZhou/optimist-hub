@@ -11,6 +11,7 @@
 import type * as customers from "../customers.js";
 import type * as inspections from "../inspections.js";
 import type * as parts from "../parts.js";
+import type * as workorders from "../workorders.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   customers: typeof customers;
   inspections: typeof inspections;
   parts: typeof parts;
+  workorders: typeof workorders;
 }>;
 
 /**

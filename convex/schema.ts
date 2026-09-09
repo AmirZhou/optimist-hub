@@ -100,11 +100,11 @@ export default defineSchema({
     .index("by_customerId", ["customerId"]),
 
   workorders: defineTable({
-    number: v.string(),
+    woNumber: v.string(),
     partId: v.id("parts"),
     active: v.boolean(),
   })
-    .index("by_number", ["number"])
+    .index("by_woNumber", ["woNumber"])
     .index("by_partId", ["partId"]),
 });
 
