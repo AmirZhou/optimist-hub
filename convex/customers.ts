@@ -1,66 +1,96 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
+import { normalizeCode, normalizeName, requireNonEmpty } from "./lib/validation";
+import { requireDoc, requireUniqueCode } from "./lib/db";
 
-export const createCustomer = mutation({
+export const create = mutation({
   args: {
     code: v.string(),
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("customers")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .unique();
-    if (existing !== null) {
-      throw new Error(`Customer ${existing.name} exists`);
-    }
-    const customerId = await ctx.db.insert("customers", {
-      ...args,
-      active: true,
-    });
+    const code = normalizeCode(requireNonEmpty(args.code, "Customer code"));
+    const name = normalizeName(requireNonEmpty(args.name, "Customer name"));
 
-    return customerId;
+    await requireUniqueCode(ctx, "customers", "by_code", "code", code);
+
+    return await ctx.db.insert("customers", { code, name, active: true });
   },
 });
 
-export const updateCustomer = mutation({
+export const update = mutation({
   args: {
     id: v.id("customers"),
     code: v.optional(v.string()),
     name: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...updates }) => {
-    const customer = await ctx.db.get("customers", id);
-    if (customer === null) {
-      throw new Error("Customer doesn't exist.");
-    }
+    const customer = await requireDoc(ctx, "customers", id);
     const patch: Partial<Doc<"customers">> = {};
 
     if (updates.code !== undefined) {
-      const code = updates.code.trim();
-      if (code === "") {
-        throw new Error("Customer Code Can't Be Empty");
+      const code = normalizeCode(requireNonEmpty(updates.code, "Customer code"));
+      if (code !== customer.code) {
+        await requireUniqueCode(ctx, "customers", "by_code", "code", code, id);
+        patch.code = code;
       }
-      const clash = await ctx.db
-        .query("customers")
-        .withIndex("by_code", (q) => q.eq("code", code))
-        .unique();
-
-      if (clash !== null) {
-        throw new Error("Customer Code Already Exists");
-      }
-      patch.code = code;
     }
 
     if (updates.name !== undefined) {
-      const name = updates.name.trim().toUpperCase();
-      if (name === "") {
-        throw new Error("Customer Name Can't Be Empty");
-      }
+      const name = normalizeName(requireNonEmpty(updates.name, "Customer name"));
       patch.name = name;
     }
 
-    await ctx.db.patch("customers", id, patch);
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch("customers", id, patch);
+    }
+  },
+});
+
+export const setActive = mutation({
+  args: {
+    id: v.id("customers"),
+    active: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireDoc(ctx, "customers", args.id);
+    await ctx.db.patch("customers", args.id, { active: args.active });
+  },
+});
+
+export const list = query({
+  args: {
+    activeOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    if (args.activeOnly) {
+      return await ctx.db
+        .query("customers")
+        .withIndex("by_active", (q) => q.eq("active", true))
+        .collect();
+    }
+    return await ctx.db
+      .query("customers")
+      .withIndex("by_active")
+      .collect();
+  },
+});
+
+export const get = query({
+  args: { id: v.id("customers") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get("customers", args.id);
+  },
+});
+
+export const getByCode = query({
+  args: { code: v.string() },
+  handler: async (ctx, args) => {
+    const code = normalizeCode(args.code);
+    return await ctx.db
+      .query("customers")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
   },
 });

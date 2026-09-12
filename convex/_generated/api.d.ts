@@ -9,8 +9,15 @@
  */
 
 import type * as customers from "../customers.js";
+import type * as files from "../files.js";
 import type * as inspections from "../inspections.js";
+import type * as inspectors from "../inspectors.js";
+import type * as lib_db from "../lib/db.js";
+import type * as lib_validation from "../lib/validation.js";
+import type * as ncrs from "../ncrs.js";
 import type * as parts from "../parts.js";
+import type * as reports from "../reports.js";
+import type * as seed from "../seed.js";
 import type * as workorders from "../workorders.js";
 
 import type {
@@ -21,8 +28,15 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   customers: typeof customers;
+  files: typeof files;
   inspections: typeof inspections;
+  inspectors: typeof inspectors;
+  "lib/db": typeof lib_db;
+  "lib/validation": typeof lib_validation;
+  ncrs: typeof ncrs;
   parts: typeof parts;
+  reports: typeof reports;
+  seed: typeof seed;
   workorders: typeof workorders;
 }>;
 
