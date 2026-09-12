@@ -49,14 +49,6 @@ export function Home() {
     if (source !== "all" && i.source !== source) return false;
     return true;
   });
-  // Open-only view reads oldest-first (an open inspection is a problem);
-  // everything else reads newest-first.
-  filtered.sort((a, b) =>
-    result === "open"
-      ? a.startedAt - b.startedAt
-      : b.startedAt - a.startedAt,
-  );
-
   return (
     <>
       <div className="filter-bar page-filters">
@@ -97,7 +89,14 @@ export function Home() {
         {filtered.length === 0 ? (
           <Empty title="No inspections match" hint="Loosen a filter, or start one from the bench." />
         ) : (
-          <InspectionTable inspections={filtered} />
+          <InspectionTable
+            inspections={filtered}
+            defaultSort={{
+              key: "startedAt",
+              // Open-only reads best oldest-first — an open inspection is a problem.
+              dir: result === "open" ? "asc" : "desc",
+            }}
+          />
         )}
     </>
   );

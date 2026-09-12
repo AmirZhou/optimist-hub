@@ -9,6 +9,93 @@ import {
 import type { Source, Reason, Stage } from "./domain";
 import { reasonLabel, sourceLabel, stageLabel } from "./domain";
 
+// ── Column sorting ─────────────────────────────────────────────────
+
+export type SortDir = "asc" | "desc";
+export type SortSpec = { key: string; dir: SortDir };
+
+/**
+ * Shared sort state for a table. `sortRows` returns a sorted copy:
+ * nulls/undefined/empty always sink to the bottom regardless of direction;
+ * numbers compare numerically, everything else case-insensitively (numeric-aware).
+ */
+export function useTableSort<T>(defaults: SortSpec) {
+  const [state, setState] = useState<SortSpec>(defaults);
+
+  const toggle = useCallback((key: string) => {
+    setState((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+  }, []);
+
+  const sortRows = useCallback(
+    (rows: T[], get: (row: T, key: string) => unknown) => {
+      const copy = [...rows];
+      copy.sort((a, b) => {
+        const av = get(a, state.key);
+        const bv = get(b, state.key);
+        const aEmpty = av === null || av === undefined || av === "";
+        const bEmpty = bv === null || bv === undefined || bv === "";
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
+        const r =
+          typeof av === "number" && typeof bv === "number"
+            ? av - bv
+            : String(av).localeCompare(String(bv), undefined, {
+                sensitivity: "base",
+                numeric: true,
+              });
+        return state.dir === "asc" ? r : -r;
+      });
+      return copy;
+    },
+    [state],
+  );
+
+  return { sort: state, toggle, setSort: setState, sortRows };
+}
+
+/** A table header that owns the sort arrows. Click toggles asc/desc. */
+export function SortTh({
+  label,
+  sortKey,
+  sort,
+  onToggle,
+  numeric,
+}: {
+  label: string;
+  sortKey: string;
+  sort: SortSpec;
+  onToggle: (key: string) => void;
+  numeric?: boolean;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th
+      className={numeric ? "num sortable" : "sortable"}
+      onClick={() => onToggle(sortKey)}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <span className="th-sort">
+        {label}
+        <svg className="sort-arrows" width="8" height="12" viewBox="0 0 10 12" aria-hidden="true">
+          <path
+            d="M5 0.8 8.6 4.4H1.4Z"
+            className={active && sort.dir === "asc" ? "on" : ""}
+          />
+          <path
+            d="M5 11.2 1.4 7.6h7.2Z"
+            className={active && sort.dir === "desc" ? "on" : ""}
+          />
+        </svg>
+      </span>
+    </th>
+  );
+}
+
 /**
  * Custom dropdown — native <select> popups are OS-styled (rounded) and can't
  * be made to match a square design, so this replaces them everywhere.
@@ -170,7 +257,7 @@ export function Loading() {
 
 // ── Toasts ─────────────────────────────────────────────────────────
 
-type Toast = { id: number; message: string };
+type Toast = { id: number; message: string; leaving?: boolean };
 let toasts: Toast[] = [];
 let nextToastId = 1;
 const toastListeners = new Set<() => void>();
@@ -187,8 +274,15 @@ export function pushToast(message: string) {
 }
 
 export function dismissToast(id: number) {
-  toasts = toasts.filter((t) => t.id !== id);
+  // Animate out first; remove from the DOM once the exit has played.
+  const existing = toasts.find((t) => t.id === id);
+  if (existing === undefined || existing.leaving) return;
+  toasts = toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t));
   emitToasts();
+  setTimeout(() => {
+    toasts = toasts.filter((t) => t.id !== id);
+    emitToasts();
+  }, 220);
 }
 
 /** Bottom-right error notifications — slides up with a subtle shake. */
@@ -208,7 +302,7 @@ export function ToastHost() {
       {list.map((t) => (
         <div
           key={t.id}
-          className="toast"
+          className={`toast${t.leaving ? " leaving" : ""}`}
           role="alert"
           onClick={() => dismissToast(t.id)}
         >

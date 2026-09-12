@@ -35,7 +35,10 @@ export function PartPage({ id }: { id: string }) {
         {history.length === 0 ? (
           <Empty title="No inspections recorded for this part" />
         ) : (
-          <InspectionTable inspections={history} />
+          <InspectionTable
+            inspections={history}
+            defaultSort={{ key: "startedAt", dir: "asc" }}
+          />
         )}
       </div>
     </>

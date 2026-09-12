@@ -1,5 +1,14 @@
+import { useEffect } from "react";
 import type { Doc } from "../convex/_generated/dataModel";
-import { ReasonBadge, ResultBadge, SourceBadge, StageBadge } from "./ui";
+import {
+  ReasonBadge,
+  ResultBadge,
+  SortTh,
+  SourceBadge,
+  StageBadge,
+  useTableSort,
+  type SortSpec,
+} from "./ui";
 import { fmtDateTime } from "./domain";
 
 /** An inspections row joined with part/customer/inspector display fields,
@@ -10,28 +19,64 @@ export type Enriched = Doc<"inspections"> & {
   inspectorName: string | null;
 };
 
-export function InspectionTable({ inspections }: { inspections: Enriched[] }) {
+function sortValue(i: Enriched, key: string): unknown {
+  switch (key) {
+    case "startedAt": return i.startedAt;
+    case "finishedAt": return i.finishedAt;
+    case "partNumber": return i.partNumber;
+    case "customerCode": return i.customerCode;
+    case "customerPo": return i.customerPo;
+    case "stage": return i.stage;
+    case "source": return i.source;
+    case "reason": return i.reason;
+    case "qtyInspected": return i.qtyInspected;
+    case "qtyRejected": return i.qtyRejected;
+    case "inspectorName": return i.inspectorName;
+    case "result": return i.result;
+    default: return "";
+  }
+}
+
+export function InspectionTable({
+  inspections,
+  defaultSort = { key: "startedAt", dir: "desc" },
+}: {
+  inspections: Enriched[];
+  defaultSort?: SortSpec;
+}) {
+  const { sort, toggle, setSort, sortRows } = useTableSort<Enriched>(defaultSort);
+
+  // A new default (e.g. the home filter switching to "Not yet judged",
+  // which reads best oldest-first) resets the sort. A user's header click
+  // always wins until the next default change.
+  useEffect(() => {
+    setSort(defaultSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultSort.key, defaultSort.dir]);
+
+  const rows = sortRows(inspections, sortValue);
+
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Started</th>
-            <th>Finished</th>
-            <th>Part</th>
-            <th>Cust.</th>
-            <th>PO</th>
-            <th>Stage</th>
-            <th>Source</th>
-            <th>Reason</th>
-            <th className="num">Insp.</th>
-            <th className="num">Rej.</th>
-            <th>Inspector</th>
-            <th>Result</th>
+            <SortTh label="Started" sortKey="startedAt" sort={sort} onToggle={toggle} />
+            <SortTh label="Finished" sortKey="finishedAt" sort={sort} onToggle={toggle} />
+            <SortTh label="Part" sortKey="partNumber" sort={sort} onToggle={toggle} />
+            <SortTh label="Cust." sortKey="customerCode" sort={sort} onToggle={toggle} />
+            <SortTh label="PO" sortKey="customerPo" sort={sort} onToggle={toggle} />
+            <SortTh label="Stage" sortKey="stage" sort={sort} onToggle={toggle} />
+            <SortTh label="Source" sortKey="source" sort={sort} onToggle={toggle} />
+            <SortTh label="Reason" sortKey="reason" sort={sort} onToggle={toggle} />
+            <SortTh label="Insp." sortKey="qtyInspected" sort={sort} onToggle={toggle} numeric />
+            <SortTh label="Rej." sortKey="qtyRejected" sort={sort} onToggle={toggle} numeric />
+            <SortTh label="Inspector" sortKey="inspectorName" sort={sort} onToggle={toggle} />
+            <SortTh label="Result" sortKey="result" sort={sort} onToggle={toggle} />
           </tr>
         </thead>
         <tbody>
-          {inspections.map((i) => (
+          {rows.map((i) => (
             <tr
               key={i._id}
               className="clickable-row"

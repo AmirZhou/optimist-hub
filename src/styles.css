@@ -1,6 +1,20 @@
 /* ── Optimist Hub — admin console styles ─────────────────────────── */
 
 :root {
+  /* Type */
+  --font-body: "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Patua One", "Lato", system-ui, serif;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-3: 0 4px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.18);
+
+  /* Motion */
+  --dur-fast: 150ms;
+  --dur-med: 250ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.3, 1);
+
   --bg: #ffffff;
   --bg-muted: #f8fafc;
   --border: #e5e7eb;
@@ -31,8 +45,21 @@ body,
   height: 100%;
 }
 
+body,
+.header,
+.card,
+.table-wrap,
+.select-btn,
+.nav-link,
+th,
+td {
+  transition: background-color var(--dur-med) var(--ease-out),
+    border-color var(--dur-med) var(--ease-out),
+    color var(--dur-med) var(--ease-out);
+}
+
 body {
-  font-family: system-ui, Inter, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
@@ -159,10 +186,11 @@ code {
 /* ── Typography ──────────────────────────────────────────────────── */
 
 .page-title {
-  font-size: 26px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 400;
   margin: 0 0 6px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .page-subtitle {
@@ -211,6 +239,9 @@ code {
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .btn:hover {
@@ -350,8 +381,21 @@ textarea {
   list-style: none;
   background: var(--bg);
   border: 1px solid var(--border);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-1);
   z-index: 40;
+  transform-origin: top left;
+  animation: menu-in var(--dur-fast) var(--ease-out);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .select-menu li {
@@ -415,6 +459,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 th {
@@ -438,6 +483,10 @@ td {
 
 tbody tr:last-child td {
   border-bottom: none;
+}
+
+tbody tr {
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 tbody tr:hover {
@@ -468,6 +517,7 @@ th.num {
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .badge-neutral {
@@ -567,6 +617,42 @@ th.num {
   border-top: 1px solid var(--border);
 }
 
+/* Sortable column headers */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--text);
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.th-sort svg path {
+  fill: var(--text-muted);
+  opacity: 0.45;
+  transition: fill var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+
+th.sortable:hover .th-sort svg path {
+  opacity: 0.9;
+}
+
+.th-sort svg path.on {
+  fill: var(--text);
+  opacity: 1;
+}
+
+[data-theme="dark"] .th-sort svg path.on {
+  fill: var(--primary);
+}
+
 /* ── Toasts — bottom-right notifications ─────────────────────────── */
 
 .toast-host {
@@ -588,7 +674,7 @@ th.num {
   background: var(--bg);
   border: 1px solid var(--border);
   border-left: 3px solid var(--danger);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-2);
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--text);
@@ -600,6 +686,18 @@ th.num {
   flex-shrink: 0;
   color: var(--danger);
   margin-top: 1px;
+}
+
+.toast.leaving {
+  animation: toast-out 200ms var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 @keyframes toast-in {
@@ -777,6 +875,25 @@ th.num {
   color: var(--text-muted);
 }
 
+/* Upload row — caption field and trigger share one baseline */
+.upload-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.upload-row .field {
+  margin-bottom: 0;
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.upload-row .btn {
+  height: 38px;
+}
+
 /* ── Login split screen ─────────────────────────────────────────── */
 
 .login-split {
@@ -784,21 +901,31 @@ th.num {
   min-height: 100vh;
 }
 
+/* Hero panel — the photo bleeds to the edges and dissolves into its label */
 .login-left {
-  flex: 1 1 55%;
+  flex: 1 1 auto;
+  min-width: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #101010;
   overflow: hidden;
-  background: #161616;
 }
 
-/* Carousel slides */
+.login-frame {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  overflow: hidden;
+}
+
 .login-slide {
   position: absolute;
   inset: 0;
   background: center / cover no-repeat;
   opacity: 0;
-  transform: scale(1.04);
-  transition: opacity 1s ease, transform 5s ease-out;
+  transform: scale(1.05);
+  transition: opacity 0.9s ease, transform 6s linear;
 }
 
 .login-slide.active {
@@ -806,107 +933,182 @@ th.num {
   transform: scale(1);
 }
 
-.login-hero-overlay {
+.login-frame-shade {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.15) 0%,
-    rgba(0, 0, 0, 0.05) 40%,
-    rgba(0, 0, 0, 0.5) 100%
+    rgba(16, 16, 16, 0.12) 0%,
+    rgba(16, 16, 16, 0) 30%,
+    rgba(16, 16, 16, 0.55) 74%,
+    #101010 97%
   );
-  display: flex;
-  align-items: flex-end;
-  padding: 40px;
+  pointer-events: none;
+}
+
+.login-slide-count {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   z-index: 2;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: "Lato", system-ui, sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+}
+
+.login-hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px 28px 28px;
+  background: #101010;
+}
+
+.login-hero-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .login-logo {
-  height: 32px;
+  height: 22px;
   width: auto;
-  opacity: 0.85;
+  display: block;
+  opacity: 0.92;
   filter: brightness(10);
 }
 
-/* Carousel dots */
+.login-hero-caption {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: "Lato", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: caption-in 0.5s ease-out both;
+}
+
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .login-dots {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  gap: 8px;
-  z-index: 3;
+  gap: 6px;
 }
 
 .login-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 28px;
+  height: 2px;
   border: none;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.22);
   cursor: pointer;
   padding: 0;
-  transition: background 0.3s, transform 0.3s;
+  overflow: hidden;
+  transition: background 0.3s;
 }
 
 .login-dot.active {
-  background: #fff;
-  transform: scale(1.3);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.login-dot.active::after {
+  content: "";
+  display: block;
+  height: 100%;
+  background: #e8401c;
+  animation: dot-fill 5s linear forwards;
 }
 
 .login-dot:hover {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.45);
 }
 
+@keyframes dot-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* Form panel — theme-aware, centered */
 .login-right {
-  flex: 0 0 45%;
-  max-width: 540px;
+  flex: 0 0 clamp(420px, 38vw, 580px);
+  position: relative;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  padding: 48px;
+  padding: 72px clamp(40px, 5vw, 72px);
   background: var(--bg);
+}
+
+[data-theme="dark"] .login-right {
+  background: #161616;
 }
 
 .login-form {
   width: 100%;
   max-width: 360px;
-  animation: form-slide-in 0.8s ease-out 0.4s both;
+  text-align: left;
 }
 
-@keyframes form-slide-in {
-  0% {
+.login-form > * {
+  animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.login-form > *:nth-child(1) { animation-delay: 0.05s; }
+.login-form > *:nth-child(2) { animation-delay: 0.14s; }
+.login-form > *:nth-child(3) { animation-delay: 0.22s; }
+.login-form > *:nth-child(4) { animation-delay: 0.32s; }
+.login-form > *:nth-child(5) { animation-delay: 0.42s; }
+
+@keyframes rise-in {
+  from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(10px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 .login-mark {
-  height: 44px;
+  height: 48px;
   width: auto;
   display: block;
-  margin-bottom: 28px;
+  margin: 0 0 24px;
 }
 
 .login-title {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin: 0 0 8px;
+  font-family: "Patua One", "Lato", system-ui, serif;
+  font-size: 34px;
+  font-weight: 400;
+  margin: 0 0 10px;
   color: var(--text);
 }
 
+.login-title-accent {
+  color: #e8401c;
+}
+
 .login-subtitle {
+  font-family: "Lato", system-ui, sans-serif;
   font-size: 14px;
   color: var(--text-muted);
-  margin: 0 0 40px;
-  line-height: 1.5;
-  letter-spacing: 0.01em;
+  margin: 0 0 36px;
+  line-height: 1.55;
 }
 
 .login-google-btn {
@@ -916,31 +1118,81 @@ th.num {
   gap: 10px;
   width: 100%;
   height: 48px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 15px;
+  border: 1px solid #dadce0;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-size: 14.5px;
   font-weight: 500;
-  font-family: inherit;
+  font-family: "Lato", system-ui, sans-serif;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.login-google-btn svg {
+  flex-shrink: 0;
 }
 
 .login-google-btn:hover {
-  background: var(--bg-muted);
-  border-color: var(--text-muted);
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+  border-color: #c8c8c8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
 }
 
 .login-google-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.985);
 }
 
 .login-domain-hint {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   font-size: 12.5px;
   color: var(--text-muted);
-  text-align: center;
+  text-align: left;
+}
+
+.login-footer {
+  position: absolute;
+  bottom: 32px;
+  left: clamp(40px, 5vw, 72px);
+  right: 40px;
+  text-align: left;
+}
+
+.login-quote {
+  margin: 0;
+  font-family: "Lato", system-ui, sans-serif;
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.login-locations {
+  margin: 6px 0 0;
+  font-family: "Lato", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.login-theme {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+
+/* Respect users who prefer stillness */
+@media (prefers-reduced-motion: reduce) {
+  .login-slide,
+  .login-slide.active,
+  .login-hero-caption,
+  .login-form > *,
+  .login-dot.active::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 .login-loading {
@@ -989,15 +1241,26 @@ th.num {
     flex-direction: column;
   }
   .login-left {
-    flex: 0 0 240px;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .login-right {
+    flex: 1 1 auto;
+  }
+  .login-frame {
+    min-height: 150px;
+  }
+  .login-hero-copy {
+    padding: 14px 16px 16px;
   }
   .login-right {
     flex: 1;
-    max-width: none;
-    padding: 32px 24px;
+    padding: 48px 24px 96px;
   }
-  .login-hero-overlay {
-    padding: 24px;
+  .login-footer {
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
   }
 }
 
@@ -1034,6 +1297,10 @@ th.num {
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 4px 10px rgba(0, 0, 0, 0.5), 0 20px 48px rgba(0, 0, 0, 0.7);
 }
 
 [data-theme="dark"] td {
@@ -1115,9 +1382,10 @@ th.num {
   background: #171717;
 }
 
-[data-theme="dark"] .login-google-btn:hover {
-  background: #1f1f1f;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+/* Google button stays white in dark mode — the classic intentional accent */
+[data-theme="dark"] .login-google-btn {
+  background: #ffffff;
+  color: #1f1f1f;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */

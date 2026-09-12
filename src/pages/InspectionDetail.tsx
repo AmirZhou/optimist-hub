@@ -364,8 +364,8 @@ function FilesSection({
   return (
     <div className="card">
       <h2 className="section-title">Images</h2>
-      <div className="row" style={{ marginBottom: 12 }}>
-        <div className="field" style={{ marginBottom: 0, flex: "1 1 260px", maxWidth: 420 }}>
+      <div className="upload-row">
+        <div className="field">
           <label>Caption</label>
           <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Optional — applies to all" />
         </div>
@@ -373,7 +373,6 @@ function FilesSection({
           type="button"
           className="btn"
           disabled={busy}
-          style={{ marginTop: 25 }}
           onClick={() => fileInput.current?.click()}
         >
           {busy ? `Uploading ${progress}` : "Choose images"}

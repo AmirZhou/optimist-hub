@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
-import { ActiveBadge, Empty, pushToast, Loading, Select, cleanError } from "../ui";
+import { ActiveBadge, Empty, pushToast, Loading, Select, SortTh, cleanError, useTableSort } from "../ui";
 
 export function Reference({
   route,
@@ -69,6 +69,8 @@ function CustomersTab() {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const { sort, toggle: sortToggle, sortRows } = useTableSort<Doc<"customers">>({ key: "code", dir: "asc" });
+  const get = (c: Doc<"customers">, key: string) => (key === "code" ? c.code : c.name);
 
   if (customers === undefined) return <Loading />;
 
@@ -112,15 +114,15 @@ function CustomersTab() {
           <table>
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Name</th>
+                <SortTh label="Code" sortKey="code" sort={sort} onToggle={sortToggle} />
+                <SortTh label="Name" sortKey="name" sort={sort} onToggle={sortToggle} />
                 <th></th>
                 <th></th>
                 <th className="status-col">Status</th>
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
+              {sortRows(customers, get).map((c) => (
                 <CustomerRow key={c._id} customer={c} update={update} toggle={toggle} />
               ))}
             </tbody>
@@ -227,6 +229,16 @@ function PartsTab() {
   const [customerId, setCustomerId] = useState("");
   const [partNumber, setPartNumber] = useState("");
   const [partName, setPartName] = useState("");
+  const { sort, toggle, sortRows } = useTableSort<Doc<"parts">>({ key: "partNumber", dir: "asc" });
+  const get = (p: Doc<"parts">, key: string) => {
+    switch (key) {
+      case "partNumber": return p.partNumber;
+      case "partName": return p.partName;
+      case "customer": return customerById.get(p.customerId)?.code ?? "";
+      case "customerPartNumber": return p.customerPartNumber;
+      default: return "";
+    }
+  };
 
   if (parts === undefined || customers === undefined) return <Loading />;
 
@@ -297,10 +309,10 @@ function PartsTab() {
           <table>
             <thead>
               <tr>
-                <th>Part number</th>
-                <th>Name</th>
-                <th>Customer</th>
-                <th>Their part number</th>
+                <SortTh label="Part number" sortKey="partNumber" sort={sort} onToggle={toggle} />
+                <SortTh label="Name" sortKey="partName" sort={sort} onToggle={toggle} />
+                <SortTh label="Customer" sortKey="customer" sort={sort} onToggle={toggle} />
+                <SortTh label="Their part number" sortKey="customerPartNumber" sort={sort} onToggle={toggle} />
                 <th></th>
                 <th></th>
                 <th></th>
@@ -308,7 +320,7 @@ function PartsTab() {
               </tr>
             </thead>
             <tbody>
-              {parts.map((p) => (
+              {sortRows(parts, get).map((p) => (
                 <PartRow
                   key={p._id}
                   part={p}
@@ -450,6 +462,9 @@ function WorkordersTab() {
 
   const [woNumber, setWoNumber] = useState("");
   const [partId, setPartId] = useState("");
+  const { sort, toggle, sortRows } = useTableSort<Doc<"workorders">>({ key: "woNumber", dir: "asc" });
+  const get = (w: Doc<"workorders">, key: string) =>
+    key === "woNumber" ? w.woNumber : ((parts ?? []).find((pp) => pp._id === w.partId)?.partNumber ?? "");
 
   if (workorders === undefined || parts === undefined || customers === undefined) {
     return <Loading />;
@@ -506,14 +521,14 @@ function WorkordersTab() {
           <table>
             <thead>
               <tr>
-                <th>WO number</th>
-                <th>Part</th>
+                <SortTh label="WO number" sortKey="woNumber" sort={sort} onToggle={toggle} />
+                <SortTh label="Part" sortKey="part" sort={sort} onToggle={toggle} />
                 <th></th>
                 <th className="status-col">Status</th>
               </tr>
             </thead>
             <tbody>
-              {workorders.map((w) => {
+              {sortRows(workorders, get).map((w) => {
                 const part = parts.find((p) => p._id === w.partId);
                 return (
                   <tr key={w._id}>
@@ -550,6 +565,7 @@ function InspectorsTab() {
   const create = useMutation(api.inspectors.create);
   const update = useMutation(api.inspectors.update);
   const setActive = useMutation(api.inspectors.setActive);
+  const { sort, toggle, sortRows } = useTableSort<Doc<"inspectors">>({ key: "name", dir: "asc" });
 
   const [name, setName] = useState("");
 
@@ -588,14 +604,14 @@ function InspectorsTab() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <SortTh label="Name" sortKey="name" sort={sort} onToggle={toggle} />
                 <th></th>
                 <th></th>
                 <th className="status-col">Status</th>
               </tr>
             </thead>
             <tbody>
-              {inspectors.map((i) => (
+              {sortRows(inspectors, (i2, key) => i2.name).map((i) => (
                 <InspectorRow
                   key={i._id}
                   inspector={i}
