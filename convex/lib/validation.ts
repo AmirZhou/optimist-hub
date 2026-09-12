@@ -40,4 +40,7 @@ export function assertQuantitiesValid(
   if (qtyRejected > 0 && result === "pass") {
     throw new Error("Cannot pass an inspection with rejected parts");
   }
+  if (qtyRejected === 0 && result === "fail") {
+    throw new Error("Cannot fail an inspection with zero rejected parts");
+  }
 }

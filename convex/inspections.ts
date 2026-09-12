@@ -147,7 +147,11 @@ export const update = mutation({
       patch.workorderId = updates.workorderId;
     }
 
-    // Re-validate source/vendorPo pairing if either changes
+    // Re-validate source/vendorPo pairing if either changes.
+    // vendorPo is assigned inside this block (not via a separate `if` below)
+    // because its normalized value depends on the pairing check — changing
+    // source from vendor to inhouse requires passing vendorPo: null in the
+    // same call, and vice versa.
     const effectiveSource = updates.source ?? inspection.source;
     const effectiveVendorPo =
       updates.vendorPo !== undefined ? updates.vendorPo : inspection.vendorPo;
