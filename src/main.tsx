@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { ConvexProvider } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { convex, hasBackend } from "./convex";
 import { App } from "./App";
 import "./styles.css";
@@ -17,9 +17,9 @@ const root = createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     {hasBackend ? (
-      <ConvexProvider client={convex!}>
+      <ConvexAuthProvider client={convex!}>
         <App />
-      </ConvexProvider>
+      </ConvexAuthProvider>
     ) : (
       <div className="setup-screen">
         <div className="card setup-card">

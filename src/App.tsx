@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useHashRoute, ToastHost } from "./ui";
 import { Home } from "./pages/Home";
 import { StartInspection } from "./pages/StartInspection";
@@ -7,8 +9,14 @@ import { PartPage } from "./pages/Part";
 import { Reference } from "./pages/Reference";
 
 export function App() {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const { signIn, signOut } = useAuthActions();
   const [hash, navigate] = useHashRoute();
   const route = hash.replace(/^#/, "");
+
+  if (isLoading || !isAuthenticated) {
+    return <LoginScreen isLoading={isLoading} onSignIn={() => void signIn("google")} />;
+  }
 
   const nav = (to: string, label: string) => {
     const path = to.replace(/^#/, "");
@@ -45,7 +53,7 @@ export function App() {
       <header className="header">
         <button className="header-brand" onClick={() => navigate("#/")}>
           <img src="/mark.png" alt="" className="brand-mark" />
-          Optimist Hub
+          Optimist QC
         </button>
         <nav className="header-nav">
           {nav("#/", "Inspections")}
@@ -53,6 +61,9 @@ export function App() {
         </nav>
         <div className="spacer" />
         <ThemeToggle />
+        <button className="btn" onClick={() => void signOut()}>
+          Sign out
+        </button>
         <button className="btn btn-primary" onClick={() => navigate("#/start")}>
           Start inspection
         </button>
@@ -90,5 +101,65 @@ function ThemeToggle() {
         </svg>
       )}
     </button>
+  );
+}
+
+const HERO_IMAGES = ["/bearing-hero.jpg", "/hero-2.jpg", "/hero-3.png"];
+const SLIDE_INTERVAL = 5000;
+
+function LoginScreen({ isLoading, onSignIn }: { isLoading: boolean; onSignIn: () => void }) {
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCurrent((i) => (i + 1) % HERO_IMAGES.length);
+    }, SLIDE_INTERVAL);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="login-split">
+      <div className="login-left">
+        {HERO_IMAGES.map((src, i) => (
+          <div
+            key={src}
+            className={`login-slide${i === current ? " active" : ""}`}
+            style={{ backgroundImage: `url(${src})` }}
+          />
+        ))}
+        <div className="login-hero-overlay">
+          <img src="/optimist-logo.png" alt="Optimist Precision" className="login-logo" />
+        </div>
+        <div className="login-dots">
+          {HERO_IMAGES.map((_, i) => (
+            <button
+              key={i}
+              className={`login-dot${i === current ? " active" : ""}`}
+              onClick={() => setCurrent(i)}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="login-right">
+        {isLoading ? (
+          <div className="login-form">
+            <div className="login-loading" />
+          </div>
+        ) : (
+          <div className="login-form">
+            <img src="/mark.png" alt="" className="login-mark" />
+            <h1 className="login-title">Optimist QC</h1>
+            <p className="login-subtitle">
+              Quality control for precision manufacturing
+            </p>
+            <button className="login-google-btn" onClick={onSignIn}>
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.99 23.99 0 0 0 0 24c0 3.77.9 7.35 2.56 10.51l7.97-5.92z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 5.92C6.51 42.62 14.62 48 24 48z"/></svg>
+              Sign in with Google
+            </button>
+            <p className="login-domain-hint">@optimistii.com accounts only</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

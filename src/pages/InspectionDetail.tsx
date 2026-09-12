@@ -284,6 +284,18 @@ function FinishForm({ id }: { id: Id<"inspections"> }) {
 
 type FileRow = Doc<"files"> & { url: string | null };
 
+/** Convert any image to a JPEG blob suitable for upload.
+ *  HEIC files are decoded via libheif WASM (heic-converter);
+ *  standard formats are passed through as-is. */
+async function toJpeg(file: File): Promise<Blob> {
+  const { isHeic, heicToJpeg } = await import("heic-converter");
+  if (await isHeic(file)) {
+    const result = await heicToJpeg(file, { quality: 0.85 });
+    return Array.isArray(result) ? result[0] : result;
+  }
+  return file;
+}
+
 function FilesSection({
   inspectionId,
   files,
@@ -297,100 +309,132 @@ function FilesSection({
 
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
-  // Storage IDs whose download isn't a displayable image.
-  const [broken, setBroken] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
-  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f === undefined) return;
+  async function uploadFiles(fileList: FileList | File[]) {
+    const items = Array.from(fileList).filter(
+      (f) => f.type.startsWith("image/"),
+    );
+    if (items.length === 0) return;
     setBusy(true);
+    const cap = caption.trim() === "" ? null : caption;
+    let done = 0;
     try {
-      const postUrl = await generateUploadUrl({});
-      const res = await fetch(postUrl, { method: "POST", body: f });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
-      await attach({
-        inspectionId,
-        fileKind: "photo",
-        storageId,
-        caption: caption.trim() === "" ? null : caption,
-        page: null,
-      });
+      for (const file of items) {
+        setProgress(`${done + 1} / ${items.length}`);
+        const blob = await toJpeg(file);
+        const postUrl = await generateUploadUrl({});
+        const res = await fetch(postUrl, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob,
+        });
+        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+        await attach({
+          inspectionId,
+          fileKind: "photo",
+          storageId,
+          caption: cap,
+          page: null,
+        });
+        done++;
+      }
       setCaption("");
       if (fileInput.current !== null) fileInput.current.value = "";
     } catch (err) {
       pushToast(cleanError(err));
     } finally {
       setBusy(false);
+      setProgress("");
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files.length > 0) {
+      void uploadFiles(e.dataTransfer.files);
     }
   }
 
   return (
     <div className="card">
       <h2 className="section-title">Images</h2>
-      <form>
-        <div className="row">
-          <div className="field" style={{ marginBottom: 0, flex: "1 1 260px", maxWidth: 420 }}>
-            <label>Caption</label>
-            <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Optional" />
-          </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            style={{ marginTop: 25 }}
-            onClick={() => fileInput.current?.click()}
-          >
-            {busy ? "Uploading…" : "Choose image"}
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={upload}
-          />
+      <div className="row" style={{ marginBottom: 12 }}>
+        <div className="field" style={{ marginBottom: 0, flex: "1 1 260px", maxWidth: 420 }}>
+          <label>Caption</label>
+          <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Optional — applies to all" />
         </div>
-      </form>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          style={{ marginTop: 25 }}
+          onClick={() => fileInput.current?.click()}
+        >
+          {busy ? `Uploading ${progress}` : "Choose images"}
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) void uploadFiles(e.target.files);
+          }}
+        />
+      </div>
 
-      {files.length === 0 ? (
-        <Empty title="No images attached" />
-      ) : (
-        <div className="files-grid">
-          {files.map((f) => (
-            <div key={f._id} className="file-card">
-              <a
-                className="file-preview"
-                href={f.url ?? "#"}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {f.url !== null && !broken.has(f._id) ? (
-                  <img
-                    src={f.url}
-                    alt={f.caption ?? "Photo"}
-                    onError={() => setBroken((s) => new Set(s).add(f._id))}
-                  />
-                ) : (
-                  <span className="file-fallback">Image</span>
-                )}
-              </a>
-              <div className="file-meta">
-                <div className="meta">
-                  {f.caption ?? "Photo"}
-                </div>
-                <button
-                  className="btn btn-sm btn-danger"
-                  onClick={() => void detach({ id: f._id })}
+      <div
+        ref={dropRef}
+        className={`drop-zone${dragging ? " dragging" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        {busy ? (
+          <span>Uploading {progress}...</span>
+        ) : files.length === 0 ? (
+          <span>Drop images here or click "Choose images"</span>
+        ) : null}
+
+        {files.length > 0 && (
+          <div className="files-grid">
+            {files.map((f) => (
+              <div key={f._id} className="file-card">
+                <a
+                  className="file-preview"
+                  href={f.url ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  Remove
-                </button>
+                  {f.url !== null ? (
+                    <img src={f.url} alt={f.caption ?? "Photo"} />
+                  ) : (
+                    <span className="file-fallback">Image</span>
+                  )}
+                </a>
+                <div className="file-meta">
+                  <div className="meta">
+                    {f.caption ?? "Photo"}
+                  </div>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => void detach({ id: f._id })}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

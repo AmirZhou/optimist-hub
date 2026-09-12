@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v, type Infer } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 // ── Validators ──────────────────────────────────────────────────────
 
@@ -52,6 +53,8 @@ export type Disposition = Infer<typeof dispositionValidator>;
 // ── Schema ──────────────────────────────────────────────────────────
 
 export default defineSchema({
+  ...authTables,
+
   customers: defineTable({
     code: v.string(),
     name: v.string(),

@@ -1,5 +1,28 @@
 import { internalMutation } from "./_generated/server";
+import type { TableNames } from "./_generated/dataModel";
 import type { InspectionStage, Source, Reason, InspectionResult } from "./schema";
+
+const ALL_TABLES: TableNames[] = [
+  "ncrs", "files", "inspections", "workorders", "parts", "inspectors", "customers",
+];
+
+/** Wipe every row from every app table. Run via:
+ *    npx convex run --no-push seed:clearAll
+ */
+export const clearAll = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let total = 0;
+    for (const table of ALL_TABLES) {
+      const rows = await ctx.db.query(table).collect();
+      for (const row of rows) {
+        await ctx.db.delete(table, row._id);
+        total++;
+      }
+    }
+    console.log(`Deleted ${total} documents across ${ALL_TABLES.length} tables`);
+  },
+});
 
 const DAY = 86_400_000;
 
