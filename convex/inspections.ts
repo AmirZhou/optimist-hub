@@ -4,8 +4,8 @@ import { v } from "convex/values";
 import {
   reasonValidator,
   sourceValidator,
-  resultValidator,
-  stageValidator,
+  inspectionResultValidator,
+  inspectionStageValidator,
 } from "./schema";
 
 // Return this weeks inspectipons, order by date (asc, des)

@@ -1,5 +1,5 @@
 import { defineSchema, defineTable } from "convex/server";
-import { v, Infer } from "convex/values";
+import { v, type Infer } from "convex/values";
 
 export const fileKindValidator = v.union(
   v.literal("vendor_sheet"),
@@ -7,6 +7,7 @@ export const fileKindValidator = v.union(
   v.literal("photo"),
   v.literal("ncr"),
 );
+export type FileKind = Infer<typeof fileKindValidator>;
 
 export const reasonValidator = v.union(
   v.literal("routine"),
@@ -20,20 +21,22 @@ export const sourceValidator = v.union(
   v.literal("inhouse"),
   v.literal("vendor"),
 );
+export type Source = Infer<typeof sourceValidator>;
 
-export const resultValidator = v.union(
-  v.literal("pending"),
+export const inspectionResultValidator = v.union(
   v.literal("pass"),
   v.literal("fail"),
 );
+export type InspectionResult = Infer<typeof InspectionResultValidator>;
 
-export const stageValidator = v.union(
+export const inspectionStageValidator = v.union(
   v.literal("blank"),
   v.literal("infiltration"),
   v.literal("heatTreat"),
   v.literal("finishing"),
   v.literal("rework"),
 );
+export type InspectionStage = Infer<typeof InspectionStageValidator>;
 
 export default defineSchema({
   customers: defineTable({
@@ -44,39 +47,40 @@ export default defineSchema({
 
   inspections: defineTable({
     partId: v.id("parts"),
-    customerPo: v.optional(v.string()),
-    vendorPo: v.optional(v.string()),
-    workorderId: v.optional(v.id("workorders")),
+    customerPo: v.string(),
+    vendorPo: v.nullable(v.string()),
+    workorderId: v.nullable(v.id("workorders")),
 
-    serials: v.optional(v.array(v.string())),
+    serials: v.array(v.string()),
 
     startedAt: v.number(),
-    finishedAt: v.optional(v.number()),
-    activeMinutes: v.optional(v.number()),
+    finishedAt: v.nullable(v.number()),
+    activeMinutes: v.nullable(v.number()),
 
-    inspectorId: v.optional(v.id("inspectors")),
+    inspectorId: v.id("inspectors"),
 
-    qtyInspected: v.optional(v.number()),
-    qtyRejected: v.optional(v.number()),
-    result: resultValidator,
+    qtyInspected: v.number(),
+    qtyRejected: v.number(),
+    result: InspectionResultValidator,
 
-    stage: stageValidator,
+    stage: InspectionStageValidator,
     source: sourceValidator,
     reason: reasonValidator,
 
-    ncrNumber: v.optional(v.string()),
+    ncrNumber: v.nullable(v.string()),
 
-    notes: v.optional(v.string()),
+    notes: v.nullable(v.string()),
   })
-    .index("by_partId", ["partId"]) // articulate this
-    .index("by_startedAt", ["startedAt"]), // if I set as finishedAt, one inspection may not be finished at the end of the day or week, and got missed. I want in my report that I clearly know what I started and finished
+    .index("by_partId_startedAt", ["partId", "startedAt"]) // articulate this
+    .index("by_startedAt", ["startedAt"]) // if I set as finishedAt, one inspection may not be finished at the end of the day or week, and got missed. I want in my report that I clearly know what I started and finished
+    .index("by_finishedAt", ["finishedAt"]),
 
   files: defineTable({
     inspectionId: v.id("inspections"),
     fileKind: fileKindValidator,
     storage: v.id("_storage"),
-    caption: v.optional(v.string()),
-    page: v.optional(v.number()),
+    caption: v.nullable(v.string()),
+    page: v.nullable(v.number()),
   }).index("by_inspectionId", ["inspectionId"]),
 
   inspectors: defineTable({
@@ -86,13 +90,13 @@ export default defineSchema({
 
   parts: defineTable({
     partNumber: v.string(),
-    partName: v.optional(v.string()),
-    drawingVersion: v.optional(v.string()),
+    partName: v.nullable(v.string()),
+    drawingVersion: v.nullable(v.string()),
 
     customerId: v.id("customers"),
-    customerPartNumber: v.optional(v.string()),
-    customerPartName: v.optional(v.string()),
-    customerDrawingVersion: v.optional(v.string()),
+    customerPartNumber: v.nullable(v.string()),
+    customerPartName: v.nullable(v.string()),
+    customerDrawingVersion: v.nullable(v.string()),
 
     active: v.boolean(),
   })
