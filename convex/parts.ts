@@ -68,19 +68,21 @@ export const update = mutation({
     }
 
     if (updates.partNumber !== undefined) {
-      const partNumber = normalizeCode(requireNonEmpty(updates.partNumber, "Part number"));
-      if (partNumber !== part.partNumber || effectiveCustomerId !== part.customerId) {
-        const existing = await ctx.db
-          .query("parts")
-          .withIndex("by_customer_partNumber", (q) =>
-            q.eq("customerId", effectiveCustomerId).eq("partNumber", partNumber),
-          )
-          .unique();
-        if (existing !== null && existing._id !== id) {
-          throw new Error(`Part ${partNumber} already exists for this customer`);
-        }
+      patch.partNumber = normalizeCode(requireNonEmpty(updates.partNumber, "Part number"));
+    }
+
+    // Re-check uniqueness whenever the (customerId, partNumber) pair changes
+    const effectivePartNumber = patch.partNumber ?? part.partNumber;
+    if (effectiveCustomerId !== part.customerId || effectivePartNumber !== part.partNumber) {
+      const existing = await ctx.db
+        .query("parts")
+        .withIndex("by_customer_partNumber", (q) =>
+          q.eq("customerId", effectiveCustomerId).eq("partNumber", effectivePartNumber),
+        )
+        .unique();
+      if (existing !== null && existing._id !== id) {
+        throw new Error(`Part ${effectivePartNumber} already exists for this customer`);
       }
-      patch.partNumber = partNumber;
     }
 
     if (updates.partName !== undefined) {

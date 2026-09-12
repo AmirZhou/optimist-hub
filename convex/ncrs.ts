@@ -69,6 +69,17 @@ export const close = mutation({
   },
 });
 
+export const setActive = mutation({
+  args: {
+    id: v.id("ncrs"),
+    active: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireDoc(ctx, "ncrs", args.id);
+    await ctx.db.patch("ncrs", args.id, { active: args.active });
+  },
+});
+
 export const listByInspection = query({
   args: { inspectionId: v.id("inspections") },
   handler: async (ctx, args) => {

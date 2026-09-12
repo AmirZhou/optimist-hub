@@ -24,3 +24,20 @@ export function requireNonEmpty(value: string, fieldLabel: string): string {
   }
   return trimmed;
 }
+
+/** Shared quantity/result invariants for inspections. */
+export function assertQuantitiesValid(
+  qtyInspected: number,
+  qtyRejected: number,
+  result: "pass" | "fail" | null,
+): void {
+  if (qtyInspected < 1) {
+    throw new Error("qtyInspected must be at least 1");
+  }
+  if (qtyRejected > qtyInspected) {
+    throw new Error("qtyRejected cannot exceed qtyInspected");
+  }
+  if (qtyRejected > 0 && result === "pass") {
+    throw new Error("Cannot pass an inspection with rejected parts");
+  }
+}

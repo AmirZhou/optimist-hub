@@ -11,7 +11,8 @@ export async function requireDoc<T extends TableNames>(
 ): Promise<Doc<T>> {
   const doc = await ctx.db.get(tableName, id);
   if (doc === null) {
-    const label = (tableName as string).charAt(0).toUpperCase() + (tableName as string).slice(1);
+    const raw = tableName as string;
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1).replace(/s$/, "");
     throw new Error(`${label} not found`);
   }
   return doc;
@@ -36,7 +37,8 @@ export async function requireUniqueCode<T extends TableNames>(
     .unique();
 
   if (existing !== null && existing._id !== excludeId) {
-    const label = (tableName as string).charAt(0).toUpperCase() + (tableName as string).slice(1);
+    const raw = tableName as string;
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1).replace(/s$/, "");
     throw new Error(`${label} with that ${field} already exists`);
   }
 }

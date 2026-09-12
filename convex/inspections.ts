@@ -7,7 +7,7 @@ import {
   inspectionResultValidator,
   inspectionStageValidator,
 } from "./schema";
-import { requireNonEmpty } from "./lib/validation";
+import { normalizeCode, requireNonEmpty, assertQuantitiesValid } from "./lib/validation";
 import { requireDoc } from "./lib/db";
 
 // ── Lifecycle mutations ─────────────────────────────────────────────
@@ -25,7 +25,7 @@ export const start = mutation({
     serials: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const customerPo = requireNonEmpty(args.customerPo, "Customer PO");
+    const customerPo = normalizeCode(requireNonEmpty(args.customerPo, "Customer PO"));
 
     const part = await requireDoc(ctx, "parts", args.partId);
     if (!part.active) {
@@ -42,11 +42,12 @@ export const start = mutation({
     }
 
     // Enforce source/vendorPo pairing
+    let vendorPo: string | null = null;
     if (args.source === "vendor") {
       if (args.vendorPo === null) {
         throw new Error("Vendor source requires a vendor PO");
       }
-      requireNonEmpty(args.vendorPo, "Vendor PO");
+      vendorPo = normalizeCode(requireNonEmpty(args.vendorPo, "Vendor PO"));
     } else {
       if (args.vendorPo !== null) {
         throw new Error("In-house source must not have a vendor PO");
@@ -56,7 +57,7 @@ export const start = mutation({
     return await ctx.db.insert("inspections", {
       partId: args.partId,
       customerPo,
-      vendorPo: args.vendorPo,
+      vendorPo,
       workorderId: args.workorderId,
       serials: args.serials ?? [],
       startedAt: Date.now(),
@@ -89,15 +90,7 @@ export const finish = mutation({
     if (inspection.finishedAt !== null) {
       throw new Error("Inspection is already finished");
     }
-    if (args.qtyInspected < 1) {
-      throw new Error("qtyInspected must be at least 1");
-    }
-    if (args.qtyRejected > args.qtyInspected) {
-      throw new Error("qtyRejected cannot exceed qtyInspected");
-    }
-    if (args.qtyRejected > 0 && args.result === "pass") {
-      throw new Error("Cannot pass an inspection with rejected parts");
-    }
+    assertQuantitiesValid(args.qtyInspected, args.qtyRejected, args.result);
 
     await ctx.db.patch("inspections", args.id, {
       qtyInspected: args.qtyInspected,
@@ -132,7 +125,7 @@ export const update = mutation({
     const patch: Partial<Doc<"inspections">> = {};
 
     if (updates.customerPo !== undefined) {
-      patch.customerPo = requireNonEmpty(updates.customerPo, "Customer PO");
+      patch.customerPo = normalizeCode(requireNonEmpty(updates.customerPo, "Customer PO"));
     }
 
     if (updates.partId !== undefined) {
@@ -163,15 +156,15 @@ export const update = mutation({
         if (effectiveVendorPo === null) {
           throw new Error("Vendor source requires a vendor PO");
         }
-        requireNonEmpty(effectiveVendorPo, "Vendor PO");
+        patch.vendorPo = normalizeCode(requireNonEmpty(effectiveVendorPo, "Vendor PO"));
       } else {
         if (effectiveVendorPo !== null) {
           throw new Error("In-house source must not have a vendor PO");
         }
+        patch.vendorPo = null;
       }
     }
 
-    if (updates.vendorPo !== undefined) patch.vendorPo = updates.vendorPo;
     if (updates.source !== undefined) patch.source = updates.source;
     if (updates.serials !== undefined) patch.serials = updates.serials;
     if (updates.stage !== undefined) patch.stage = updates.stage;
@@ -180,6 +173,14 @@ export const update = mutation({
     if (updates.qtyRejected !== undefined) patch.qtyRejected = updates.qtyRejected;
     if (updates.activeMinutes !== undefined) patch.activeMinutes = updates.activeMinutes;
     if (updates.notes !== undefined) patch.notes = updates.notes;
+
+    // Re-validate quantity invariants if either quantity changes
+    if (updates.qtyInspected !== undefined || updates.qtyRejected !== undefined) {
+      const effectiveQtyInspected = updates.qtyInspected ?? inspection.qtyInspected;
+      const effectiveQtyRejected = updates.qtyRejected ?? inspection.qtyRejected;
+      const effectiveResult = inspection.result;
+      assertQuantitiesValid(effectiveQtyInspected, effectiveQtyRejected, effectiveResult);
+    }
 
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch("inspections", id, patch);

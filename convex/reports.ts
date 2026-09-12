@@ -2,6 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
+import { normalizeCode } from "./lib/validation";
 
 /** Join display data onto an inspection row. */
 async function enrichInspection(
@@ -78,9 +79,10 @@ export const partHistory = query({
 export const byCustomerPo = query({
   args: { customerPo: v.string() },
   handler: async (ctx, args) => {
+    const customerPo = normalizeCode(args.customerPo);
     const inspections = await ctx.db
       .query("inspections")
-      .withIndex("by_customerPo", (q) => q.eq("customerPo", args.customerPo))
+      .withIndex("by_customerPo", (q) => q.eq("customerPo", customerPo))
       .collect();
 
     return await Promise.all(inspections.map((i) => enrichInspection(ctx, i)));
@@ -107,7 +109,7 @@ export const rejectSummary = query({
 
     const byStage: Record<string, { qtyInspected: number; qtyRejected: number }> = {};
 
-    for (const insp of inspections) {
+    for (const insp of inspections.filter((i) => i.finishedAt !== null)) {
       const entry = byStage[insp.stage] ?? { qtyInspected: 0, qtyRejected: 0 };
       entry.qtyInspected += insp.qtyInspected;
       entry.qtyRejected += insp.qtyRejected;

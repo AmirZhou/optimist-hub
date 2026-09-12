@@ -67,13 +67,13 @@ export const list = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // No by_active index on workorders — use table scan.
-    // Workorders table is small at MVP volume.
-    const all = await ctx.db.query("workorders").collect();
     if (args.activeOnly) {
-      return all.filter((wo) => wo.active);
+      return await ctx.db
+        .query("workorders")
+        .withIndex("by_active", (q) => q.eq("active", true))
+        .collect();
     }
-    return all;
+    return await ctx.db.query("workorders").withIndex("by_active").collect();
   },
 });
 

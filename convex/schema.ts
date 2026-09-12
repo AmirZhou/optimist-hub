@@ -123,7 +123,8 @@ export default defineSchema({
     active: v.boolean(),
   })
     .index("by_woNumber", ["woNumber"])
-    .index("by_partId", ["partId"]),
+    .index("by_partId", ["partId"])
+    .index("by_active", ["active"]),
 
   ncrs: defineTable({
     ncrNumber: v.string(),
