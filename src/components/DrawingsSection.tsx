@@ -5,7 +5,7 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import { Select, cleanError, pushToast } from "../ui";
+import { Modal, Select, cleanError, pushToast } from "../ui";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -194,83 +194,22 @@ function DrawingsSectionInner({
   );
   const drawings = ownerKey === "partId" ? drawingsByPart : drawingsByThread;
 
-  const attachDrawings = useAttachDrawings();
   const detach = useMutation(api.drawings.detach);
-
-  const [kind, setKind] = useState<string>("our_drawing");
-  const [revision, setRevision] = useState("");
-  const [busy, setBusy] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   const owner: DrawingOwner =
     ownerKey === "partId"
       ? { partId: ownerId as Id<"parts"> }
       : { threadId: ownerId as Id<"threads"> };
 
-  async function uploadPdf(file: File) {
-    setBusy(true);
-    try {
-      await attachDrawings(
-        [{ key: 0, file, kind: kind as DrawingKind, revision }],
-        owner,
-      );
-      setRevision("");
-      if (fileInput.current) fileInput.current.value = "";
-    } catch (err) {
-      pushToast(cleanError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="card">
       <h2 className="section-title">Drawings</h2>
 
-      {readOnly !== true && (
-        <div className="upload-row">
-          <div className="field">
-            <label>Kind</label>
-            <Select
-              value={kind}
-              onChange={setKind}
-              options={KIND_OPTIONS}
-            />
-          </div>
-          <div className="field">
-            <label>Revision</label>
-            <input
-              value={revision}
-              onChange={(e) => setRevision(e.target.value)}
-              placeholder="Optional"
-              style={{ width: 100 }}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() => fileInput.current?.click()}
-          >
-            {busy ? "Uploading…" : "Upload PDF"}
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/pdf"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void uploadPdf(f);
-            }}
-          />
-        </div>
-      )}
-
       {drawings === undefined ? null : drawings.length === 0 ? (
-        <p className="meta" style={{ marginTop: 12 }}>No drawings uploaded yet.</p>
+        <p className="meta" style={{ marginBottom: 16 }}>No drawings uploaded yet.</p>
       ) : (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginBottom: 16 }}>
           {drawings.map((d) => (
             <DrawingCard
               key={d._id}
@@ -280,7 +219,66 @@ function DrawingsSectionInner({
           ))}
         </div>
       )}
+
+      {readOnly !== true && (
+        <button className="btn btn-sm" onClick={() => setShowAdd(true)}>
+          Add drawings
+        </button>
+      )}
+
+      {showAdd && (
+        <AddDrawingModal owner={owner} onClose={() => setShowAdd(false)} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Uploads one or more PDFs to an existing part or thread. Drawings are added
+ * rarely, so this lives behind a button instead of parking a kind/revision row
+ * above every drawing list. Reuses DrawingPicker, so adding a drawing later
+ * looks identical to adding one while creating the part or thread.
+ */
+function AddDrawingModal({
+  owner,
+  onClose,
+}: {
+  owner: DrawingOwner;
+  onClose: () => void;
+}) {
+  const attachDrawings = useAttachDrawings();
+  const [staged, setStaged] = useState<StagedDrawing[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Modal title="Add drawings" onClose={onClose}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (staged.length === 0) {
+            pushToast("Choose at least one PDF.");
+            return;
+          }
+          setBusy(true);
+          try {
+            await attachDrawings(staged, owner);
+            onClose();
+          } catch (err) {
+            pushToast(cleanError(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <DrawingPicker staged={staged} onChange={setStaged} />
+        <button className="btn btn-primary btn-add" disabled={busy}>
+          {busy
+            ? "Uploading…"
+            : staged.length > 1
+              ? `Upload ${staged.length} drawings`
+              : "Upload drawing"}
+        </button>
+      </form>
+    </Modal>
   );
 }
 
