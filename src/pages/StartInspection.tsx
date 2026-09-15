@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { pushToast, Select, cleanError } from "../ui";
+import { Modal, pushToast, Select, cleanError } from "../ui";
 import { REASONS, SOURCES, STAGES, reasonLabel, sourceLabel, stageLabel } from "../domain";
 
 const emptyForm = {
@@ -91,6 +91,7 @@ function parseRange(input: string): string[] | null {
 export function StartInspection({ onStarted }: { onStarted?: (id: string) => void }) {
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
+  const [showNewWo, setShowNewWo] = useState(false);
 
   // S/N mode: "manual" for textarea, "range" for range input + slots
   const [snMode, setSnMode] = useState<"manual" | "range">("manual");
@@ -112,6 +113,13 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
     () => (parts ?? []).filter((p) => p.customerId === form.customerId),
     [parts, form.customerId],
   );
+
+  const selectedPart = (parts ?? []).find((p) => p._id === form.partId);
+  const selectedPartLabel =
+    selectedPart === undefined
+      ? ""
+      : selectedPart.partNumber +
+        (selectedPart.partName ? ` — ${selectedPart.partName}` : "");
 
   const set = (k: keyof typeof emptyForm, v: string) => {
     setForm((f) => ({
@@ -305,7 +313,22 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
           </div>
 
           <div className="field">
-            <label>Work order</label>
+            <div className="row-between" style={{ marginBottom: 4 }}>
+              <label style={{ margin: 0 }}>Work order</label>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={form.partId === ""}
+                title={
+                  form.partId === ""
+                    ? "Select a part first"
+                    : "Create a work order for this part"
+                }
+                onClick={() => setShowNewWo(true)}
+              >
+                New
+              </button>
+            </div>
             <Select
               value={form.woNumber}
               onChange={(v) => set("woNumber", v)}
@@ -314,7 +337,7 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
                 form.partId === ""
                   ? "Select part first…"
                   : (workorders ?? []).length === 0
-                    ? "None for this part"
+                    ? "None yet — use New"
                     : "None"
               }
               options={(workorders ?? [])
@@ -397,6 +420,80 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
             </button>
           </div>
         </form>
+
+      {/* Outside the form on purpose — Modal renders inline, and a nested
+          <form> would submit the outer one. */}
+      {showNewWo && form.partId !== "" && (
+        <NewWorkorderModal
+          partId={form.partId as Id<"parts">}
+          partLabel={selectedPartLabel}
+          onCreated={(woNumber) => set("woNumber", woNumber)}
+          onClose={() => setShowNewWo(false)}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * Creates a work order for the part already chosen on the inspection form, so
+ * starting an inspection doesn't require a detour to the Work orders tab.
+ */
+function NewWorkorderModal({
+  partId,
+  partLabel,
+  onCreated,
+  onClose,
+}: {
+  partId: Id<"parts">;
+  partLabel: string;
+  onCreated: (woNumber: string) => void;
+  onClose: () => void;
+}) {
+  const create = useMutation(api.workorders.create);
+  const [woNumber, setWoNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Modal title="New work order" onClose={onClose}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (woNumber.trim() === "") {
+            pushToast("WO number is required.");
+            return;
+          }
+          setBusy(true);
+          try {
+            await create({ woNumber, partId });
+            // Mirrors the server's normalizeCode so the new number matches the
+            // option the workorders query is about to return.
+            onCreated(woNumber.trim().toUpperCase());
+            onClose();
+          } catch (err) {
+            pushToast(cleanError(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <div className="field">
+          <label>Part</label>
+          <p className="meta" style={{ margin: 0 }}>{partLabel}</p>
+        </div>
+        <div className="field">
+          <label>WO number *</label>
+          <input
+            value={woNumber}
+            onChange={(e) => setWoNumber(e.target.value)}
+            placeholder="WO number"
+            autoCapitalize="characters"
+            autoFocus
+          />
+        </div>
+        <button className="btn btn-primary btn-add" disabled={busy}>
+          {busy ? "Creating…" : "Create work order"}
+        </button>
+      </form>
+    </Modal>
   );
 }
