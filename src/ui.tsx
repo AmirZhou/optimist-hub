@@ -373,6 +373,44 @@ export function useHashRoute(): [string, (to: string) => void] {
   return [hash, navigate];
 }
 
+/** Full-screen modal with backdrop, Escape-to-close, click-outside-to-close. */
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div
+        className={`modal-card${wide ? " modal-wide" : ""}`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button className="btn btn-sm" onClick={onClose} aria-label="Close">
+            &times;
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function Link({
   to,
   children,

@@ -23,6 +23,7 @@ async function enrichInspection(
   return {
     ...inspection,
     partNumber: part?.partNumber ?? null,
+    partName: part?.partName ?? null,
     customerCode,
     inspectorName: inspector?.name ?? null,
   };

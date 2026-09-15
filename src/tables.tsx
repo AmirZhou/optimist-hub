@@ -1,10 +1,8 @@
 import { useEffect } from "react";
 import type { Doc } from "../convex/_generated/dataModel";
 import {
-  ReasonBadge,
   ResultBadge,
   SortTh,
-  SourceBadge,
   StageBadge,
   useTableSort,
   type SortSpec,
@@ -15,6 +13,7 @@ import { fmtDateTime } from "./domain";
  *  as returned by every reports.* query. */
 export type Enriched = Doc<"inspections"> & {
   partNumber: string | null;
+  partName: string | null;
   customerCode: string | null;
   inspectorName: string | null;
 };
@@ -27,11 +26,8 @@ function sortValue(i: Enriched, key: string): unknown {
     case "customerCode": return i.customerCode;
     case "customerPo": return i.customerPo;
     case "stage": return i.stage;
-    case "source": return i.source;
-    case "reason": return i.reason;
     case "qtyInspected": return i.qtyInspected;
     case "qtyRejected": return i.qtyRejected;
-    case "inspectorName": return i.inspectorName;
     case "result": return i.result;
     default: return "";
   }
@@ -67,11 +63,8 @@ export function InspectionTable({
             <SortTh label="Cust." sortKey="customerCode" sort={sort} onToggle={toggle} />
             <SortTh label="PO" sortKey="customerPo" sort={sort} onToggle={toggle} />
             <SortTh label="Stage" sortKey="stage" sort={sort} onToggle={toggle} />
-            <SortTh label="Source" sortKey="source" sort={sort} onToggle={toggle} />
-            <SortTh label="Reason" sortKey="reason" sort={sort} onToggle={toggle} />
             <SortTh label="Insp." sortKey="qtyInspected" sort={sort} onToggle={toggle} numeric />
             <SortTh label="Rej." sortKey="qtyRejected" sort={sort} onToggle={toggle} numeric />
-            <SortTh label="Inspector" sortKey="inspectorName" sort={sort} onToggle={toggle} />
             <SortTh label="Result" sortKey="result" sort={sort} onToggle={toggle} />
           </tr>
         </thead>
@@ -89,6 +82,7 @@ export function InspectionTable({
               <td>
                 <a href={`#/inspection/${i._id}`} onClick={(e) => e.stopPropagation()}>
                   {i.partNumber}
+                  {i.partName ? ` — ${i.partName}` : ""}
                 </a>
               </td>
               <td>{i.customerCode}</td>
@@ -96,15 +90,8 @@ export function InspectionTable({
               <td>
                 <StageBadge stage={i.stage} />
               </td>
-              <td>
-                <SourceBadge source={i.source} />
-              </td>
-              <td>
-                <ReasonBadge reason={i.reason} />
-              </td>
               <td className="num">{i.finishedAt === null ? "—" : i.qtyInspected}</td>
               <td className="num">{i.finishedAt === null ? "—" : i.qtyRejected}</td>
-              <td>{i.inspectorName}</td>
               <td>
                 <ResultBadge result={i.result} />
               </td>

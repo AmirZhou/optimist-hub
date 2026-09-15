@@ -3,14 +3,17 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { Empty, Loading } from "../ui";
 import { InspectionTable } from "../tables";
+import { DrawingsSection } from "../components/DrawingsSection";
+import { PartThreadsSection } from "../components/PartThreads";
 
 export function PartPage({ id }: { id: string }) {
-  const part = useQuery(api.parts.get, { id: id as Id<"parts"> });
+  const partId = id as Id<"parts">;
+  const part = useQuery(api.parts.get, { id: partId });
   const customer = useQuery(
     api.customers.get,
     part ? { id: part.customerId } : "skip",
   );
-  const history = useQuery(api.reports.partHistory, { partId: id as Id<"parts"> });
+  const history = useQuery(api.reports.partHistory, { partId });
 
   if (part === undefined || customer === undefined || history === undefined) {
     return <Loading />;
@@ -29,6 +32,19 @@ export function PartPage({ id }: { id: string }) {
         {part.customerPartNumber ? ` · their number ${part.customerPartNumber}` : ""}
         {!part.active ? " · inactive" : ""}
       </p>
+
+      <div className="card">
+        <h2 className="section-title">Notes</h2>
+        {part.notes ? (
+          <p style={{ whiteSpace: "pre-wrap" }}>{part.notes}</p>
+        ) : (
+          <p className="meta">No notes.</p>
+        )}
+      </div>
+
+      <PartThreadsSection partId={partId} />
+
+      <DrawingsSection partId={partId} />
 
       <div className="card">
         <h2 className="section-title">Inspection history</h2>

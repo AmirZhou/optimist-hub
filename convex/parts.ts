@@ -1,7 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { normalizeCode, normalizeName, requireNonEmpty } from "./lib/validation";
+import {
+  normalizeCode,
+  normalizeName,
+  normalizeNotes,
+  requireNonEmpty,
+} from "./lib/validation";
 import { requireDoc } from "./lib/db";
 
 export const create = mutation({
@@ -13,6 +18,7 @@ export const create = mutation({
     customerPartNumber: v.nullable(v.string()),
     customerPartName: v.nullable(v.string()),
     customerDrawingVersion: v.nullable(v.string()),
+    notes: v.optional(v.nullable(v.string())),
   },
   handler: async (ctx, args) => {
     const partNumber = normalizeCode(requireNonEmpty(args.partNumber, "Part number"));
@@ -40,6 +46,7 @@ export const create = mutation({
         ? normalizeName(args.customerPartName)
         : null,
       customerDrawingVersion: args.customerDrawingVersion,
+      notes: normalizeNotes(args.notes ?? null),
       active: true,
     });
   },
@@ -55,6 +62,7 @@ export const update = mutation({
     customerPartNumber: v.optional(v.nullable(v.string())),
     customerPartName: v.optional(v.nullable(v.string())),
     customerDrawingVersion: v.optional(v.nullable(v.string())),
+    notes: v.optional(v.nullable(v.string())),
   },
   handler: async (ctx, { id, ...updates }) => {
     const part = await requireDoc(ctx, "parts", id);
@@ -103,6 +111,9 @@ export const update = mutation({
     }
     if (updates.customerDrawingVersion !== undefined) {
       patch.customerDrawingVersion = updates.customerDrawingVersion;
+    }
+    if (updates.notes !== undefined) {
+      patch.notes = normalizeNotes(updates.notes);
     }
 
     if (Object.keys(patch).length > 0) {

@@ -119,6 +119,7 @@ export const update = mutation({
     qtyRejected: v.optional(v.number()),
     activeMinutes: v.optional(v.nullable(v.number())),
     notes: v.optional(v.nullable(v.string())),
+    result: v.optional(v.nullable(inspectionResultValidator)),
   },
   handler: async (ctx, { id, ...updates }) => {
     const inspection = await requireDoc(ctx, "inspections", id);
@@ -177,13 +178,16 @@ export const update = mutation({
     if (updates.qtyRejected !== undefined) patch.qtyRejected = updates.qtyRejected;
     if (updates.activeMinutes !== undefined) patch.activeMinutes = updates.activeMinutes;
     if (updates.notes !== undefined) patch.notes = updates.notes;
+    if (updates.result !== undefined) patch.result = updates.result;
 
-    // Re-validate quantity invariants if either quantity changes
-    if (updates.qtyInspected !== undefined || updates.qtyRejected !== undefined) {
+    // Re-validate quantity invariants if quantities or result change
+    if (updates.qtyInspected !== undefined || updates.qtyRejected !== undefined || updates.result !== undefined) {
       const effectiveQtyInspected = updates.qtyInspected ?? inspection.qtyInspected;
       const effectiveQtyRejected = updates.qtyRejected ?? inspection.qtyRejected;
-      const effectiveResult = inspection.result;
-      assertQuantitiesValid(effectiveQtyInspected, effectiveQtyRejected, effectiveResult);
+      const effectiveResult = updates.result !== undefined ? updates.result : inspection.result;
+      if (effectiveResult !== null) {
+        assertQuantitiesValid(effectiveQtyInspected, effectiveQtyRejected, effectiveResult);
+      }
     }
 
     if (Object.keys(patch).length > 0) {

@@ -14,7 +14,7 @@ import {
   StageBadge,
   pushToast,
 } from "../ui";
-import { fmtDateTime } from "../domain";
+import { fmtDateTime, STAGES, SOURCES, REASONS, stageLabel, sourceLabel, reasonLabel } from "../domain";
 
 export function InspectionDetail({ id }: { id: string }) {
   const inspection = useQuery(api.inspections.get, { id: id as Id<"inspections"> });
@@ -29,6 +29,13 @@ export function InspectionDetail({ id }: { id: string }) {
     inspection?.workorderId != null ? { id: inspection.workorderId } : "skip",
   );
   const files = useQuery(api.files.listByInspection, { inspectionId: id as Id<"inspections"> });
+
+  // Reference data for edit mode
+  const inspectors = useQuery(api.inspectors.list, { activeOnly: true });
+  const workorders = useQuery(
+    api.workorders.listByPart,
+    inspection ? { partId: inspection.partId } : "skip",
+  );
 
   if (
     inspection === undefined ||
@@ -60,67 +67,15 @@ export function InspectionDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="row-between">
-          <h2 className="section-title" style={{ margin: 0 }}>Details</h2>
-          {inspection.finishedAt !== null && <ReopenButton id={inspection._id} />}
-        </div>
-        <dl className="kv mt">
-          <dt>Customer</dt>
-          <dd>{customer ? `${customer.code} — ${customer.name}` : "—"}</dd>
-          <dt>Part</dt>
-          <dd>
-            {part.partNumber}
-            {part.partName ? ` — ${part.partName}` : ""}
-            {part.drawingVersion ? ` (rev ${part.drawingVersion})` : ""}
-          </dd>
-          {part.customerPartNumber && (
-            <>
-              <dt>Their part number</dt>
-              <dd>
-                {part.customerPartNumber}
-                {part.customerDrawingVersion ? ` (rev ${part.customerDrawingVersion})` : ""}
-              </dd>
-            </>
-          )}
-          <dt>Customer PO</dt>
-          <dd>{inspection.customerPo}</dd>
-          {inspection.vendorPo !== null && (
-            <>
-              <dt>Vendor PO</dt>
-              <dd>{inspection.vendorPo}</dd>
-            </>
-          )}
-          {workorder !== null && workorder !== undefined && (
-            <>
-              <dt>Work order</dt>
-              <dd>{workorder.woNumber}</dd>
-            </>
-          )}
-          <dt>Inspector</dt>
-          <dd>{inspector?.name ?? "—"}</dd>
-          <dt>Started</dt>
-          <dd>{fmtDateTime(inspection.startedAt)}</dd>
-          <dt>Finished</dt>
-          <dd>
-            {inspection.finishedAt === null
-              ? <Badge kind="warning">Open</Badge>
-              : fmtDateTime(inspection.finishedAt)}
-          </dd>
-          {inspection.serials.length > 0 && (
-            <>
-              <dt>Serials</dt>
-              <dd>{inspection.serials.join(", ")}</dd>
-            </>
-          )}
-          {inspection.notes !== null && (
-            <>
-              <dt>Notes</dt>
-              <dd>{inspection.notes}</dd>
-            </>
-          )}
-        </dl>
-      </div>
+      <DetailsCard
+        inspection={inspection}
+        part={part}
+        customer={customer}
+        inspector={inspector}
+        workorder={workorder ?? null}
+        inspectors={inspectors ?? []}
+        workorders={workorders ?? []}
+      />
 
       {inspection.finishedAt === null ? (
         <FinishForm id={inspection._id} />
@@ -131,45 +86,275 @@ export function InspectionDetail({ id }: { id: string }) {
   );
 }
 
-// ── Finish ──────────────────────────────────────────────────────────
+// ── Details card with inline editing ────────────────────────────────
 
-type Inspection = Doc<"inspections">;
+function DetailsCard({
+  inspection,
+  part,
+  customer,
+  inspector,
+  workorder,
+  inspectors,
+  workorders,
+}: {
+  inspection: Doc<"inspections">;
+  part: Doc<"parts">;
+  customer: Doc<"customers"> | null;
+  inspector: Doc<"inspectors"> | null;
+  workorder: Doc<"workorders"> | null;
+  inspectors: Doc<"inspectors">[];
+  workorders: Doc<"workorders">[];
+}) {
+  const [editing, setEditing] = useState(false);
+  const update = useMutation(api.inspections.update);
+  const [saving, setSaving] = useState(false);
 
-/** Small reopen affordance for a finished inspection — lives in the Details
- *  card header since there is no separate Result card. */
-function ReopenButton({ id }: { id: Id<"inspections"> }) {
-  const reopen = useMutation(api.inspections.reopen);
-  const [confirming, setConfirming] = useState(false);
+  // Edit form state — initialized from current inspection
+  const [customerPo, setCustomerPo] = useState(inspection.customerPo);
+  const [vendorPo, setVendorPo] = useState(inspection.vendorPo ?? "");
+  const [stage, setStage] = useState(inspection.stage);
+  const [source, setSource] = useState(inspection.source);
+  const [reason, setReason] = useState(inspection.reason);
+  const [inspectorId, setInspectorId] = useState(inspection.inspectorId as string);
+  const [woNumber, setWoNumber] = useState(workorder?.woNumber ?? "");
+  const [serials, setSerials] = useState(inspection.serials.join(", "));
+  const [notes, setNotes] = useState(inspection.notes ?? "");
+  const [qtyInspected, setQtyInspected] = useState(String(inspection.qtyInspected));
+  const [qtyRejected, setQtyRejected] = useState(String(inspection.qtyRejected));
+  const [result, setResult] = useState(inspection.result ?? "");
+
+  function resetForm() {
+    setCustomerPo(inspection.customerPo);
+    setVendorPo(inspection.vendorPo ?? "");
+    setStage(inspection.stage);
+    setSource(inspection.source);
+    setReason(inspection.reason);
+    setInspectorId(inspection.inspectorId as string);
+    setWoNumber(workorder?.woNumber ?? "");
+    setSerials(inspection.serials.join(", "));
+    setNotes(inspection.notes ?? "");
+    setQtyInspected(String(inspection.qtyInspected));
+    setQtyRejected(String(inspection.qtyRejected));
+    setResult(inspection.result ?? "");
+  }
+
+  async function saveEdits() {
+    setSaving(true);
+    try {
+      const wo = workorders.find((w) => w.woNumber === woNumber.trim().toUpperCase());
+      const serialsArray = serials
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+
+      await update({
+        id: inspection._id,
+        customerPo,
+        vendorPo: source === "vendor" ? vendorPo : null,
+        stage,
+        source,
+        reason,
+        inspectorId: inspectorId as Id<"inspectors">,
+        workorderId: wo ? wo._id : null,
+        serials: serialsArray,
+        notes: notes.trim() === "" ? null : notes,
+        qtyInspected: Number(qtyInspected),
+        qtyRejected: Number(qtyRejected),
+        result: result !== "" ? (result as "pass" | "fail") : null,
+      });
+      setEditing(false);
+    } catch (err) {
+      pushToast(cleanError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="card">
+        <div className="row-between">
+          <h2 className="section-title" style={{ margin: 0 }}>Edit details</h2>
+          <div className="row">
+            <button className="btn btn-primary btn-sm" disabled={saving} onClick={() => void saveEdits()}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button className="btn btn-sm" onClick={() => { resetForm(); setEditing(false); }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+        <div className="form-grid mt">
+          <div className="field">
+            <label>Customer PO</label>
+            <input value={customerPo} onChange={(e) => setCustomerPo(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Stage</label>
+            <Select
+              value={stage}
+              onChange={(v) => setStage(v as typeof stage)}
+              options={STAGES.map((s) => ({ value: s, label: stageLabel(s) }))}
+            />
+          </div>
+          <div className="field">
+            <label>Source</label>
+            <Select
+              value={source}
+              onChange={(v) => setSource(v as typeof source)}
+              options={SOURCES.map((s) => ({ value: s, label: sourceLabel(s) }))}
+            />
+          </div>
+          {source === "vendor" && (
+            <div className="field">
+              <label>Vendor PO</label>
+              <input value={vendorPo} onChange={(e) => setVendorPo(e.target.value)} />
+            </div>
+          )}
+          <div className="field">
+            <label>Reason</label>
+            <Select
+              value={reason}
+              onChange={(v) => setReason(v as typeof reason)}
+              options={REASONS.map((r) => ({ value: r, label: reasonLabel(r) }))}
+            />
+          </div>
+          <div className="field">
+            <label>Inspector</label>
+            <Select
+              value={inspectorId}
+              onChange={setInspectorId}
+              options={inspectors.map((i) => ({ value: i._id, label: i.name }))}
+            />
+          </div>
+          <div className="field">
+            <label>Work order</label>
+            <Select
+              value={woNumber}
+              onChange={setWoNumber}
+              placeholder="None"
+              options={workorders
+                .filter((w) => w.active)
+                .map((w) => ({ value: w.woNumber, label: w.woNumber }))}
+            />
+          </div>
+          {inspection.finishedAt !== null && (
+            <>
+              <div className="field">
+                <label>Qty inspected</label>
+                <input type="number" min={0} value={qtyInspected} onChange={(e) => setQtyInspected(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Qty rejected</label>
+                <input type="number" min={0} value={qtyRejected} onChange={(e) => setQtyRejected(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Result</label>
+                <Select
+                  value={result}
+                  onChange={(v) => setResult(v)}
+                  options={[
+                    { value: "", label: "Not yet judged" },
+                    { value: "pass", label: "Pass" },
+                    { value: "fail", label: "Fail" },
+                  ]}
+                />
+              </div>
+            </>
+          )}
+          <div className="field" style={{ gridColumn: "1 / -1" }}>
+            <label>Serials</label>
+            <textarea value={serials} onChange={(e) => setSerials(e.target.value)} />
+          </div>
+          <div className="field" style={{ gridColumn: "1 / -1" }}>
+            <label>Notes</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {confirming ? (
-        <div className="row">
-          <button
-            className="btn btn-danger btn-sm"
-            onClick={async () => {
-              try {
-                await reopen({ id });
-                setConfirming(false);
-              } catch (err) {
-                pushToast(cleanError(err));
-              }
-            }}
-          >
-            Yes, reopen it
-          </button>
-          <button className="btn btn-sm" onClick={() => setConfirming(false)}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button className="btn btn-sm" onClick={() => setConfirming(true)}>
-          Reopen
+    <div className="card">
+      <div className="row-between">
+        <h2 className="section-title" style={{ margin: 0 }}>Details</h2>
+        <button className="btn btn-sm" onClick={() => { resetForm(); setEditing(true); }}>
+          Edit
         </button>
-      )}
-    </>
+      </div>
+      <dl className="kv mt">
+        <dt>Customer</dt>
+        <dd>{customer ? `${customer.code} — ${customer.name}` : "—"}</dd>
+        <dt>Part</dt>
+        <dd>
+          {part.partNumber}
+          {part.partName ? ` — ${part.partName}` : ""}
+          {part.drawingVersion ? ` (rev ${part.drawingVersion})` : ""}
+        </dd>
+        {part.customerPartNumber && (
+          <>
+            <dt>Their part number</dt>
+            <dd>
+              {part.customerPartNumber}
+              {part.customerDrawingVersion ? ` (rev ${part.customerDrawingVersion})` : ""}
+            </dd>
+          </>
+        )}
+        <dt>Customer PO</dt>
+        <dd>{inspection.customerPo}</dd>
+        {inspection.vendorPo !== null && (
+          <>
+            <dt>Vendor PO</dt>
+            <dd>{inspection.vendorPo}</dd>
+          </>
+        )}
+        {workorder !== null && workorder !== undefined && (
+          <>
+            <dt>Work order</dt>
+            <dd>{workorder.woNumber}</dd>
+          </>
+        )}
+        <dt>Inspector</dt>
+        <dd>{inspector?.name ?? "—"}</dd>
+        <dt>Source</dt>
+        <dd><SourceBadge source={inspection.source} /></dd>
+        <dt>Reason</dt>
+        <dd><ReasonBadge reason={inspection.reason} /></dd>
+        <dt>Started</dt>
+        <dd>{fmtDateTime(inspection.startedAt)}</dd>
+        <dt>Finished</dt>
+        <dd>
+          {inspection.finishedAt === null
+            ? <Badge kind="warning">Open</Badge>
+            : fmtDateTime(inspection.finishedAt)}
+        </dd>
+        {inspection.finishedAt !== null && (
+          <>
+            <dt>Qty inspected</dt>
+            <dd>{inspection.qtyInspected}</dd>
+            <dt>Qty rejected</dt>
+            <dd>{inspection.qtyRejected}</dd>
+          </>
+        )}
+        {inspection.serials.length > 0 && (
+          <>
+            <dt>Serials</dt>
+            <dd>{inspection.serials.join(", ")}</dd>
+          </>
+        )}
+        {inspection.notes !== null && (
+          <>
+            <dt>Notes</dt>
+            <dd>{inspection.notes}</dd>
+          </>
+        )}
+      </dl>
+    </div>
   );
 }
+
+// ── Finish ──────────────────────────────────────────────────────────
 
 function FinishForm({ id }: { id: Id<"inspections"> }) {
   const finish = useMutation(api.inspections.finish);

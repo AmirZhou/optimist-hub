@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useHashRoute, ToastHost } from "./ui";
+import { useHashRoute, Modal, ToastHost } from "./ui";
 import { Home } from "./pages/Home";
 import { StartInspection } from "./pages/StartInspection";
 import { InspectionDetail } from "./pages/InspectionDetail";
 import { PartPage } from "./pages/Part";
+import { ThreadPage } from "./pages/Thread";
 import { Reference } from "./pages/Reference";
 
 export function App() {
@@ -13,6 +14,8 @@ export function App() {
   const { signIn, signOut } = useAuthActions();
   const [hash, navigate] = useHashRoute();
   const route = hash.replace(/^#/, "");
+  const [showStart, setShowStart] = useState(false);
+  const closeStart = useCallback(() => setShowStart(false), []);
 
   if (isLoading || !isAuthenticated) {
     return <LoginScreen isLoading={isLoading} onSignIn={() => void signIn("google")} />;
@@ -36,12 +39,12 @@ export function App() {
   let page: React.ReactNode;
   if (route === "/" || route === "") {
     page = <Home />;
-  } else if (route === "/start") {
-    page = <StartInspection />;
   } else if (route.startsWith("/inspection/")) {
     page = <InspectionDetail id={route.slice("/inspection/".length)} />;
   } else if (route.startsWith("/part/")) {
     page = <PartPage id={route.slice("/part/".length)} />;
+  } else if (route.startsWith("/thread/")) {
+    page = <ThreadPage id={route.slice("/thread/".length)} />;
   } else if (route.startsWith("/ref")) {
     page = <Reference route={route} navigate={navigate} />;
   } else {
@@ -64,11 +67,21 @@ export function App() {
         <button className="btn" onClick={() => void signOut()}>
           Sign out
         </button>
-        <button className="btn btn-primary" onClick={() => navigate("#/start")}>
+        <button className="btn btn-primary" onClick={() => setShowStart(true)}>
           Start inspection
         </button>
       </header>
       <div className="content">{page}</div>
+      {showStart && (
+        <Modal title="Start inspection" onClose={closeStart} wide>
+          <StartInspection
+            onStarted={(id) => {
+              setShowStart(false);
+              navigate(`#/inspection/${id}`);
+            }}
+          />
+        </Modal>
+      )}
       <ToastHost />
     </div>
   );

@@ -18,9 +18,85 @@ const emptyForm = {
   serials: "",
 };
 
+/** Parse a range like "001-050" or "ABC-001 to ABC-050" into serial strings. */
+function parseRange(input: string): string[] | null {
+  const trimmed = input.trim();
+  if (trimmed === "") return null;
+
+  // Try "PREFIX-NNN to PREFIX-MMM" or "PREFIX-NNN-PREFIX-MMM" patterns
+  // Also handles simple "NNN-MMM" or "NNN to MMM"
+  const toMatch = trimmed.match(/^(.+?)\s+to\s+(.+)$/i);
+  const parts = toMatch ? [toMatch[1].trim(), toMatch[2].trim()] : null;
+
+  // If no "to" separator, try dash separator but be smart about it
+  let fromStr: string;
+  let toStr: string;
+
+  if (parts) {
+    [fromStr, toStr] = parts;
+  } else {
+    // For dash separator, try to split intelligently
+    // If the string looks like "001-050" (pure numeric on both sides), split on dash
+    const simpleNumeric = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (simpleNumeric) {
+      fromStr = simpleNumeric[1];
+      toStr = simpleNumeric[2];
+    } else {
+      // Try splitting on the last dash: "ABC-001-ABC-050" → "ABC-001" and "ABC-050"
+      // or "ABC-001-050" → prefix "ABC-", range 001-050
+      const lastDash = trimmed.lastIndexOf("-");
+      if (lastDash <= 0) return null;
+      fromStr = trimmed.slice(0, lastDash).trim();
+      toStr = trimmed.slice(lastDash + 1).trim();
+    }
+  }
+
+  // Extract numeric suffix from both
+  const fromMatch = fromStr.match(/^(.*?)(\d+)$/);
+  const toMatch2 = toStr.match(/^(.*?)(\d+)$/);
+  if (!fromMatch || !toMatch2) return null;
+
+  const fromPrefix = fromMatch[1];
+  const fromNum = parseInt(fromMatch[2], 10);
+  const fromPad = fromMatch[2].length;
+
+  const toPrefix = toMatch2[1];
+  const toNum = parseInt(toMatch2[2], 10);
+  const toPad = toMatch2[2].length;
+
+  // Determine the prefix to use
+  let prefix: string;
+  let padLen: number;
+
+  if (fromPrefix === toPrefix) {
+    prefix = fromPrefix;
+    padLen = Math.max(fromPad, toPad);
+  } else if (toPrefix === "" && fromPrefix !== "") {
+    // "ABC-001-050" pattern: toStr is just "050"
+    prefix = fromPrefix;
+    padLen = Math.max(fromPad, toPad);
+  } else {
+    return null; // prefixes don't match
+  }
+
+  if (fromNum > toNum || toNum - fromNum > 999) return null;
+
+  const result: string[] = [];
+  for (let i = fromNum; i <= toNum; i++) {
+    result.push(prefix + String(i).padStart(padLen, "0"));
+  }
+  return result;
+}
+
 export function StartInspection({ onStarted }: { onStarted?: (id: string) => void }) {
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
+
+  // S/N mode: "manual" for textarea, "range" for range input + slots
+  const [snMode, setSnMode] = useState<"manual" | "range">("manual");
+  const [rangeInput, setRangeInput] = useState("");
+  const [generatedSerials, setGeneratedSerials] = useState<string[]>([]);
+  const [selectedSerials, setSelectedSerials] = useState<Set<string>>(new Set());
 
   const customers = useQuery(api.customers.list, { activeOnly: true });
   const parts = useQuery(api.parts.list, { activeOnly: true });
@@ -47,6 +123,33 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
     }));
   };
 
+  function handleGenerate() {
+    const result = parseRange(rangeInput);
+    if (result === null || result.length === 0) {
+      pushToast("Could not parse range. Try formats like \"001-050\" or \"ABC-001 to ABC-050\".");
+      return;
+    }
+    setGeneratedSerials(result);
+    setSelectedSerials(new Set(result));
+  }
+
+  function toggleSerial(sn: string) {
+    setSelectedSerials((prev) => {
+      const next = new Set(prev);
+      if (next.has(sn)) next.delete(sn);
+      else next.add(sn);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedSerials(new Set(generatedSerials));
+  }
+
+  function selectNone() {
+    setSelectedSerials(new Set());
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -64,10 +167,15 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
       return pushToast("In-house source must not have a vendor PO.");
     }
 
-    const serials = form.serials
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter((s) => s !== "");
+    let serials: string[];
+    if (snMode === "range") {
+      serials = generatedSerials.filter((sn) => selectedSerials.has(sn));
+    } else {
+      serials = form.serials
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+    }
 
     const wo = workorders?.find((w) => w.woNumber === form.woNumber.trim().toUpperCase());
 
@@ -85,6 +193,9 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
         serials,
       });
       setForm({ ...emptyForm });
+      setGeneratedSerials([]);
+      setSelectedSerials(new Set());
+      setRangeInput("");
       if (onStarted !== undefined) onStarted(id);
       else window.location.hash = `#/inspection/${id}`;
     } catch (err) {
@@ -98,14 +209,7 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
 
   return (
     <>
-      <h1 className="page-title">Start inspection</h1>
-      <p className="page-subtitle">
-        Record what you know now. Results get entered later, when the inspection
-        is finished.
-      </p>
-
-      <div className="card">
-        <form onSubmit={submit}>
+      <form onSubmit={submit}>
         <div className="form-grid">
           <div className="field">
             <label>Customer *</label>
@@ -220,12 +324,70 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
           </div>
 
             <div className="field" style={{ gridColumn: "1 / -1" }}>
-              <label>Serials</label>
-              <textarea
-                value={form.serials}
-                onChange={(e) => set("serials", e.target.value)}
-                placeholder={"One serial per line (leave empty if not serialized)"}
-              />
+              <div className="row-between" style={{ marginBottom: 4 }}>
+                <label style={{ margin: 0 }}>Serials</label>
+                <div className="row">
+                  <button
+                    type="button"
+                    className={`btn btn-sm${snMode === "manual" ? " btn-primary" : ""}`}
+                    onClick={() => setSnMode("manual")}
+                  >
+                    Manual
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm${snMode === "range" ? " btn-primary" : ""}`}
+                    onClick={() => setSnMode("range")}
+                  >
+                    Range
+                  </button>
+                </div>
+              </div>
+
+              {snMode === "manual" ? (
+                <textarea
+                  value={form.serials}
+                  onChange={(e) => set("serials", e.target.value)}
+                  placeholder={"One serial per line (leave empty if not serialized)"}
+                />
+              ) : (
+                <>
+                  <div className="row" style={{ marginBottom: 8 }}>
+                    <input
+                      value={rangeInput}
+                      onChange={(e) => setRangeInput(e.target.value)}
+                      placeholder='e.g. 001-050 or ABC-001 to ABC-050'
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" className="btn" onClick={handleGenerate}>
+                      Generate
+                    </button>
+                  </div>
+                  {generatedSerials.length > 0 && (
+                    <>
+                      <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+                        <span className="meta">
+                          {selectedSerials.size} of {generatedSerials.length} selected
+                        </span>
+                        <button type="button" className="btn btn-sm" onClick={selectAll}>All</button>
+                        <button type="button" className="btn btn-sm" onClick={selectNone}>None</button>
+                      </div>
+                      <div className="sn-grid">
+                        {generatedSerials.map((sn) => (
+                          <button
+                            key={sn}
+                            type="button"
+                            className={`sn-slot${selectedSerials.has(sn) ? " selected" : ""}`}
+                            onClick={() => toggleSerial(sn)}
+                          >
+                            {sn}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -235,7 +397,6 @@ export function StartInspection({ onStarted }: { onStarted?: (id: string) => voi
             </button>
           </div>
         </form>
-      </div>
     </>
   );
 }

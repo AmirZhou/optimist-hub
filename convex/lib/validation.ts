@@ -16,6 +16,16 @@ export function normalizeName(s: string): string {
   return s.trim().replace(/\s+/g, " ");
 }
 
+/**
+ * Trim free-text notes, collapsing a blank entry to null so that "no notes"
+ * has exactly one representation instead of both null and "".
+ */
+export function normalizeNotes(s: string | null): string | null {
+  if (s === null) return null;
+  const trimmed = s.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 /** Throws if value is empty after trimming; returns the trimmed value. */
 export function requireNonEmpty(value: string, fieldLabel: string): string {
   const trimmed = value.trim();

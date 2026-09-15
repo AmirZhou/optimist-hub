@@ -2,6 +2,14 @@ import { defineSchema, defineTable } from "convex/server";
 import { v, type Infer } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
+// ── Drawing kind validator ───────────────────────────────────────────
+
+export const drawingKindValidator = v.union(
+  v.literal("our_drawing"),
+  v.literal("customer_drawing"),
+);
+export type DrawingKind = Infer<typeof drawingKindValidator>;
+
 // ── Validators ──────────────────────────────────────────────────────
 
 export const fileKindValidator = v.union(
@@ -115,6 +123,9 @@ export default defineSchema({
     customerPartName: v.nullable(v.string()),
     customerDrawingVersion: v.nullable(v.string()),
 
+    // Optional because rows created before notes existed have no field at all
+    notes: v.optional(v.nullable(v.string())),
+
     active: v.boolean(),
   })
     .index("by_customer_partNumber", ["customerId", "partNumber"])
@@ -143,4 +154,31 @@ export default defineSchema({
     .index("by_ncrNumber", ["ncrNumber"])
     .index("by_inspectionId", ["inspectionId"])
     .index("by_closedAt", ["closedAt"]),
+
+  threads: defineTable({
+    name: v.string(),
+    // Optional because rows created before notes existed have no field at all
+    notes: v.optional(v.nullable(v.string())),
+    active: v.boolean(),
+  })
+    .index("by_active", ["active"])
+    .index("by_name", ["name"]),
+
+  partThreads: defineTable({
+    partId: v.id("parts"),
+    threadId: v.id("threads"),
+  })
+    .index("by_partId", ["partId"])
+    .index("by_threadId", ["threadId"]),
+
+  drawings: defineTable({
+    storageId: v.id("_storage"),
+    partId: v.nullable(v.id("parts")),
+    threadId: v.nullable(v.id("threads")),
+    kind: drawingKindValidator,
+    revision: v.nullable(v.string()),
+    uploadedAt: v.number(),
+  })
+    .index("by_partId", ["partId"])
+    .index("by_threadId", ["threadId"]),
 });

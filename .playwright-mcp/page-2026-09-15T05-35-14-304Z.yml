@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: 01 / 03
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - img "Optimist Precision" [ref=e12]
+        - paragraph [ref=e13]: Tungsten carbide radial bearings
+      - generic [ref=e14]:
+        - button "Tungsten carbide radial bearings" [ref=e15] [cursor=pointer]
+        - button "Mud motor bearings" [ref=e16] [cursor=pointer]
+        - button "Precision finished components" [ref=e17] [cursor=pointer]
+  - generic [ref=e18]:
+    - button "Toggle dark mode" [ref=e20] [cursor=pointer]
+    - generic [ref=e23]:
+      - heading "Optimist QC" [level=1] [ref=e24]
+      - paragraph [ref=e25]: Quality control for precision manufacturing
+      - button "Sign in with Google" [ref=e26] [cursor=pointer]
+      - paragraph [ref=e32]: "@optimistii.com accounts only"
+    - generic [ref=e33]:
+      - paragraph [ref=e34]: “They can because they think they can” — Virgil
+      - paragraph [ref=e35]: Houston, Texas · Calgary, Alberta
