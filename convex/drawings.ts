@@ -75,6 +75,45 @@ export const listByThread = query({
   },
 });
 
+/**
+ * Every drawing reachable from a part through its linked threads, grouped by
+ * thread. The inspection page needs the thread's drawings alongside the part —
+ * not just the drawings hung directly off the part itself.
+ */
+export const listByPartThreads = query({
+  args: { partId: v.id("parts") },
+  handler: async (ctx, args) => {
+    const links = await ctx.db
+      .query("partThreads")
+      .withIndex("by_partId", (q) => q.eq("partId", args.partId))
+      .collect();
+
+    return await Promise.all(
+      links.map(async (link) => {
+        const [thread, drawings] = await Promise.all([
+          ctx.db.get("threads", link.threadId),
+          ctx.db
+            .query("drawings")
+            .withIndex("by_threadId", (q) => q.eq("threadId", link.threadId))
+            .collect(),
+        ]);
+
+        return {
+          threadId: link.threadId,
+          threadName: thread?.name ?? null,
+          threadNotes: thread?.notes ?? null,
+          drawings: await Promise.all(
+            drawings.map(async (d) => ({
+              ...d,
+              url: await ctx.storage.getUrl(d.storageId),
+            })),
+          ),
+        };
+      }),
+    );
+  },
+});
+
 export const detach = mutation({
   args: { id: v.id("drawings") },
   handler: async (ctx, args) => {

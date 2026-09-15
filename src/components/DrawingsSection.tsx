@@ -282,7 +282,8 @@ function AddDrawingModal({
   );
 }
 
-function DrawingCard({
+/** Exported so other views can show a drawing read-only (omit `onDetach`). */
+export function DrawingCard({
   drawing,
   onDetach,
 }: {

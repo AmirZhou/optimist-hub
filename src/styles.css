@@ -604,6 +604,19 @@ tbody tr:hover {
   gap: 6px;
 }
 
+/* One linked thread's drawings inside the inspection's Part details section */
+.thread-drawings + .thread-drawings {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.subsection-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
 .btn-inline-x {
   display: inline-flex;
   align-items: center;

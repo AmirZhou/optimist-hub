@@ -15,6 +15,7 @@ import {
   pushToast,
 } from "../ui";
 import { fmtDateTime, STAGES, SOURCES, REASONS, stageLabel, sourceLabel, reasonLabel } from "../domain";
+import { PartThreadDrawingsSection } from "../components/PartThreadDrawings";
 
 export function InspectionDetail({ id }: { id: string }) {
   const inspection = useQuery(api.inspections.get, { id: id as Id<"inspections"> });
@@ -82,6 +83,8 @@ export function InspectionDetail({ id }: { id: string }) {
       ) : null}
 
       <FilesSection inspectionId={inspection._id} files={files} />
+
+      <PartThreadDrawingsSection partId={inspection.partId} />
     </>
   );
 }
