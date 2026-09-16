@@ -6,6 +6,7 @@ import {
   Badge,
   Empty,
   Loading,
+  Modal,
   ReasonBadge,
   cleanError,
   ResultBadge,
@@ -491,22 +492,94 @@ function FilesSection({
   inspectionId: Id<"inspections">;
   files: FileRow[];
 }) {
+  const detach = useMutation(api.files.detach);
+  const [showAdd, setShowAdd] = useState(false);
+
+  return (
+    <div className="card">
+      <h2 className="section-title">Images</h2>
+
+      {files.length === 0 ? (
+        <p className="meta" style={{ marginBottom: 16 }}>No images uploaded yet.</p>
+      ) : (
+        <div className="files-grid" style={{ marginBottom: 16 }}>
+          {files.map((f) => (
+            <div key={f._id} className="file-card">
+              <a
+                className="file-preview"
+                href={f.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {f.url !== null ? (
+                  <img src={f.url} alt={f.caption ?? "Photo"} />
+                ) : (
+                  <span className="file-fallback">Image</span>
+                )}
+              </a>
+              <div className="file-meta">
+                <div className="meta">
+                  {f.caption ?? "Photo"}
+                </div>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={() => void detach({ id: f._id })}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button className="btn btn-sm" onClick={() => setShowAdd(true)}>
+        Add images
+      </button>
+
+      {showAdd && (
+        <AddImagesModal
+          inspectionId={inspectionId}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Uploads photos to an inspection. Behind a button so the section isn't holding
+ * an empty caption field and a dashed drop target open at all times.
+ *
+ * There is no submit button: picking or dropping files starts the upload, and a
+ * clean batch closes the modal. A failure keeps it open with the error shown so
+ * the caption isn't lost.
+ */
+function AddImagesModal({
+  inspectionId,
+  onClose,
+}: {
+  inspectionId: Id<"inspections">;
+  onClose: () => void;
+}) {
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const attach = useMutation(api.files.attach);
-  const detach = useMutation(api.files.detach);
 
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
 
   async function uploadFiles(fileList: FileList | File[]) {
-    const items = Array.from(fileList).filter(
-      (f) => f.type.startsWith("image/"),
+    const items = Array.from(fileList).filter((f) =>
+      f.type.startsWith("image/"),
     );
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      pushToast("Only image files can be uploaded.");
+      return;
+    }
+
     setBusy(true);
     const cap = caption.trim() === "" ? null : caption;
     let done = 0;
@@ -531,97 +604,70 @@ function FilesSection({
         });
         done++;
       }
-      setCaption("");
-      if (fileInput.current !== null) fileInput.current.value = "";
+      // Closing unmounts this component, so don't touch state after this.
+      onClose();
     } catch (err) {
       pushToast(cleanError(err));
-    } finally {
       setBusy(false);
       setProgress("");
-    }
-  }
-
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    if (e.dataTransfer.files.length > 0) {
-      void uploadFiles(e.dataTransfer.files);
+      if (fileInput.current !== null) fileInput.current.value = "";
     }
   }
 
   return (
-    <div className="card">
-      <h2 className="section-title">Images</h2>
-      <div className="upload-row">
-        <div className="field">
-          <label>Caption</label>
-          <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Optional — applies to all" />
-        </div>
+    <Modal title="Add images" onClose={onClose}>
+      <div className="field">
+        <label>Caption</label>
+        <input
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder="Optional — applies to every image in this batch"
+          disabled={busy}
+          autoFocus
+        />
+      </div>
+
+      <div
+        className={`drop-zone${dragging ? " dragging" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer.files.length > 0) {
+            void uploadFiles(e.dataTransfer.files);
+          }
+        }}
+      >
+        <span>{busy ? `Uploading ${progress}…` : "Drop images here"}</span>
+      </div>
+
+      <div className="row" style={{ marginTop: 14 }}>
         <button
           type="button"
-          className="btn"
+          className="btn btn-primary"
           disabled={busy}
           onClick={() => fileInput.current?.click()}
         >
           {busy ? `Uploading ${progress}` : "Choose images"}
         </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) void uploadFiles(e.target.files);
-          }}
-        />
       </div>
 
-      <div
-        ref={dropRef}
-        className={`drop-zone${dragging ? " dragging" : ""}`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-      >
-        {busy ? (
-          <span>Uploading {progress}...</span>
-        ) : files.length === 0 ? (
-          <span>Drop images here or click "Choose images"</span>
-        ) : null}
-
-        {files.length > 0 && (
-          <div className="files-grid">
-            {files.map((f) => (
-              <div key={f._id} className="file-card">
-                <a
-                  className="file-preview"
-                  href={f.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {f.url !== null ? (
-                    <img src={f.url} alt={f.caption ?? "Photo"} />
-                  ) : (
-                    <span className="file-fallback">Image</span>
-                  )}
-                </a>
-                <div className="file-meta">
-                  <div className="meta">
-                    {f.caption ?? "Photo"}
-                  </div>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => void detach({ id: f._id })}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            void uploadFiles(e.target.files);
+          }
+        }}
+      />
+    </Modal>
   );
 }
