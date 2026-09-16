@@ -19,6 +19,8 @@ import { fmtDateTime, STAGES, SOURCES, REASONS, stageLabel, sourceLabel, reasonL
 import { PartThreadDrawingsSection } from "../components/PartThreadDrawings";
 
 export function InspectionDetail({ id }: { id: string }) {
+  const [showFinish, setShowFinish] = useState(false);
+
   const inspection = useQuery(api.inspections.get, { id: id as Id<"inspections"> });
   const part = useQuery(api.parts.get, inspection ? { id: inspection.partId } : "skip");
   const customer = useQuery(api.customers.get, part ? { id: part.customerId } : "skip");
@@ -67,6 +69,12 @@ export function InspectionDetail({ id }: { id: string }) {
             <ReasonBadge reason={inspection.reason} />
           </div>
         </div>
+
+        {inspection.finishedAt === null && (
+          <button className="btn btn-primary" onClick={() => setShowFinish(true)}>
+            Finish inspection
+          </button>
+        )}
       </div>
 
       <DetailsCard
@@ -79,13 +87,16 @@ export function InspectionDetail({ id }: { id: string }) {
         workorders={workorders ?? []}
       />
 
-      {inspection.finishedAt === null ? (
-        <FinishForm id={inspection._id} />
-      ) : null}
-
       <FilesSection inspectionId={inspection._id} files={files} />
 
       <PartThreadDrawingsSection partId={inspection.partId} />
+
+      {showFinish && (
+        <FinishModal
+          id={inspection._id}
+          onClose={() => setShowFinish(false)}
+        />
+      )}
     </>
   );
 }
@@ -360,7 +371,13 @@ function DetailsCard({
 
 // ── Finish ──────────────────────────────────────────────────────────
 
-function FinishForm({ id }: { id: Id<"inspections"> }) {
+function FinishModal({
+  id,
+  onClose,
+}: {
+  id: Id<"inspections">;
+  onClose: () => void;
+}) {
   const finish = useMutation(api.inspections.finish);
   const [qtyInspected, setQtyInspected] = useState("");
   const [qtyRejected, setQtyRejected] = useState("");
@@ -402,16 +419,16 @@ function FinishForm({ id }: { id: Id<"inspections"> }) {
         activeMinutes: activeMinutes === "" ? null : Number(activeMinutes),
         notes: notes.trim() === "" ? null : notes,
       });
+      // Closing unmounts this component, so don't touch state after this.
+      onClose();
     } catch (err) {
       pushToast(cleanError(err));
-    } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="card">
-      <h2 className="section-title">Finish inspection</h2>
+    <Modal title="Finish inspection" onClose={onClose} wide>
       <form onSubmit={submit}>
         <div className="form-grid">
           <div className="field">
@@ -465,7 +482,7 @@ function FinishForm({ id }: { id: Id<"inspections"> }) {
           {saving ? "Finishing…" : "Finish inspection"}
         </button>
       </form>
-    </div>
+    </Modal>
   );
 }
 
