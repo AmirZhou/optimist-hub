@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { drawingKindValidator } from "./schema";
+import type { Doc } from "./_generated/dataModel";
 import { requireDoc } from "./lib/db";
 
 export const generateUploadUrl = mutation({
@@ -76,19 +77,37 @@ export const listByThread = query({
 });
 
 /**
- * Every drawing reachable from a part through its linked threads, grouped by
- * thread. The inspection page needs the thread's drawings alongside the part —
- * not just the drawings hung directly off the part itself.
+ * Every drawing an inspector needs for a part: the part's own drawings first,
+ * then those reachable through each linked thread. Returned as uniform groups
+ * so the caller renders one list instead of special-casing the two sources.
+ *
+ * Empty groups are kept so the UI can tell "nothing uploaded anywhere" apart
+ * from "this particular thread has none".
  */
-export const listByPartThreads = query({
+export const listForPartDetails = query({
   args: { partId: v.id("parts") },
   handler: async (ctx, args) => {
-    const links = await ctx.db
-      .query("partThreads")
-      .withIndex("by_partId", (q) => q.eq("partId", args.partId))
-      .collect();
+    const withUrls = async (rows: Doc<"drawings">[]) =>
+      await Promise.all(
+        rows.map(async (d) => ({
+          ...d,
+          url: await ctx.storage.getUrl(d.storageId),
+        })),
+      );
 
-    return await Promise.all(
+    const [part, partDrawings, links] = await Promise.all([
+      ctx.db.get("parts", args.partId),
+      ctx.db
+        .query("drawings")
+        .withIndex("by_partId", (q) => q.eq("partId", args.partId))
+        .collect(),
+      ctx.db
+        .query("partThreads")
+        .withIndex("by_partId", (q) => q.eq("partId", args.partId))
+        .collect(),
+    ]);
+
+    const threadGroups = await Promise.all(
       links.map(async (link) => {
         const [thread, drawings] = await Promise.all([
           ctx.db.get("threads", link.threadId),
@@ -99,18 +118,27 @@ export const listByPartThreads = query({
         ]);
 
         return {
-          threadId: link.threadId,
-          threadName: thread?.name ?? null,
-          threadNotes: thread?.notes ?? null,
-          drawings: await Promise.all(
-            drawings.map(async (d) => ({
-              ...d,
-              url: await ctx.storage.getUrl(d.storageId),
-            })),
-          ),
+          key: link.threadId as string,
+          source: "thread" as const,
+          title: thread?.name ?? "—",
+          href: `#/thread/${link.threadId}`,
+          notes: thread?.notes ?? null,
+          drawings: await withUrls(drawings),
         };
       }),
     );
+
+    return [
+      {
+        key: args.partId as string,
+        source: "part" as const,
+        title: part?.partNumber ?? "This part",
+        href: `#/part/${args.partId}`,
+        notes: part?.notes ?? null,
+        drawings: await withUrls(partDrawings),
+      },
+      ...threadGroups,
+    ];
   },
 });
 

@@ -604,18 +604,6 @@ tbody tr:hover {
   gap: 6px;
 }
 
-/* One linked thread's drawings inside the inspection's Part details section */
-.thread-drawings + .thread-drawings {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-}
-
-.subsection-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
 
 .btn-inline-x {
   display: inline-flex;
@@ -1587,10 +1575,13 @@ th.sortable:hover .th-sort svg path {
 
 /* ── PDF viewer ──────────────────────────────────────────────────── */
 
+/*
+ * Deliberately frameless. A drawing already sits inside a card, and the page
+ * itself is a white rectangle — wrapping it in a bordered, filled panel reads
+ * as a box inside a box. The hairline goes on the canvas instead, so the sheet
+ * edge stays defined without adding a container.
+ */
 .pdf-viewer {
-  border: 1px solid var(--border);
-  background: var(--bg-muted);
-  padding: 12px;
   margin-top: 8px;
 }
 
@@ -1598,6 +1589,7 @@ th.sortable:hover .th-sort svg path {
   display: block;
   max-width: 100%;
   margin: 0 auto;
+  border: 1px solid var(--border);
 }
 
 /*
@@ -1608,6 +1600,9 @@ th.sortable:hover .th-sort svg path {
   overflow: auto;
   max-height: 75vh;
   overscroll-behavior: contain;
+  /* Only when zoomed does the fill earn its keep — it marks the scroll region */
+  background: var(--bg-muted);
+  padding: 12px;
 }
 
 .pdf-viewer.zoomed canvas {
@@ -1701,15 +1696,48 @@ th.sortable:hover .th-sort svg path {
 
 /* ── Drawings section ────────────────────────────────────────────── */
 
-.drawing-card {
-  border: 1px solid var(--border);
-  padding: 12px;
-  margin-bottom: 12px;
+/* Flat: the enclosing card is the only frame. Rules separate stacked drawings. */
+.drawing-card + .drawing-card {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
 
 .drawing-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+/* ── Part details groups (inspection page) ───────────────────────── */
+
+.drawing-group + .drawing-group {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.drawing-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+/* Says whether these drawings come from the part itself or a linked thread */
+.drawing-group-source {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.drawing-group-notes {
+  white-space: pre-wrap;
+  margin: 0 0 12px;
+  color: var(--text-secondary);
 }
